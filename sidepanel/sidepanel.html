@@ -10,8 +10,44 @@
   </head>
   <body class="pn-popup pn-sidepanel">
     <header class="pn-header pn-sidepanel-header">
-      <h1 class="pn-title">PromptNest</h1>
       <div class="pn-header-actions">
+        <button
+          id="back-btn"
+          class="pn-btn pn-btn--ghost pn-icon-btn hidden"
+          type="button"
+          title="Back to Prompts"
+          aria-label="Back to Prompts"
+          style="margin-right: auto;"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+        </button>
+        <button
+          id="history-btn"
+          class="pn-btn pn-btn--ghost pn-icon-btn"
+          type="button"
+          title="Chat History"
+          aria-label="Chat History"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+        </button>
+        <button
+          id="settings-btn"
+          class="pn-btn pn-btn--ghost pn-icon-btn"
+          type="button"
+          title="Settings"
+          aria-label="Settings"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
         <button
           id="refresh-btn"
           class="pn-btn pn-btn--ghost pn-icon-btn"
@@ -30,7 +66,7 @@
           class="pn-btn pn-btn--primary"
           type="button"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
@@ -52,13 +88,7 @@
       <button class="tab pn-tab active" data-tab="prompts" type="button">
         Prompts
       </button>
-      <button class="tab pn-tab" data-tab="history" type="button">
-        History
-      </button>
-      <button class="tab pn-tab" data-tab="export" type="button">Export</button>
       <button class="tab pn-tab" data-tab="tags" type="button">Tags</button>
-      <button class="tab pn-tab" data-tab="settings" type="button">
-        Settings
       </button>
     </nav>
 

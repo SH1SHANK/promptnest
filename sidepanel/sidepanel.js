@@ -345,10 +345,12 @@ const refreshHeaderControls = async () => {
   }
 };
 
-/** Switches active tab and updates visible content pane. */
+/** Switches active tab and updates visible content pane and header state. */
 const switchTab = async (tabName) => {
   const tabs = Array.from(document.querySelectorAll('.tab'));
   const panes = Array.from(document.querySelectorAll('.tab-content'));
+  
+  const isStandaloneView = ['history', 'settings', 'export'].includes(tabName);
 
   state.activeTab = String(tabName || 'prompts');
 
@@ -359,6 +361,23 @@ const switchTab = async (tabName) => {
   panes.forEach((pane) => {
     pane.classList.toggle('active', pane.dataset.tab === state.activeTab);
   });
+
+  const tabBar = document.querySelector('.pn-tab-bar');
+  const searchWrap = document.getElementById('search-wrap');
+  const backBtn = document.getElementById('back-btn');
+  const addPromptBtn = document.getElementById('add-prompt-btn');
+  const historyBtn = document.getElementById('history-btn');
+  const settingsBtn = document.getElementById('settings-btn');
+  const refreshBtn = document.getElementById('refresh-btn');
+
+  if (tabBar) tabBar.style.display = isStandaloneView ? 'none' : 'flex';
+  if (searchWrap) searchWrap.style.display = isStandaloneView ? 'none' : 'block';
+  
+  if (backBtn) backBtn.classList.toggle('hidden', !isStandaloneView);
+  if (addPromptBtn) addPromptBtn.classList.toggle('hidden', isStandaloneView);
+  if (historyBtn) historyBtn.classList.toggle('hidden', isStandaloneView);
+  if (settingsBtn) settingsBtn.classList.toggle('hidden', isStandaloneView);
+  if (refreshBtn) refreshBtn.classList.toggle('hidden', isStandaloneView);
 
   await refreshHeaderControls();
   await updateTabIndicator();
@@ -701,7 +720,7 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
   const injectButton = document.createElement('button');
   injectButton.className = 'pn-btn pn-btn--ghost';
   injectButton.type = 'button';
-  injectButton.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -1px;"><path d="M7 11v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3a4 4 0 0 0 4-4V4a2 2 0 0 1 4 0v5h3.6a2 2 0 0 1 1.93 2.5l-2 7a2 2 0 0 1-1.93 1.5H8"></path></svg>Use Prompt`;
+  injectButton.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3a4 4 0 0 0 4-4V4a2 2 0 0 1 4 0v5h3.6a2 2 0 0 1 1.93 2.5l-2 7a2 2 0 0 1-1.93 1.5H8"></path></svg>Use Prompt`;
 
   if (!canInject) {
     injectButton.disabled = true;
@@ -1556,6 +1575,18 @@ const bindEvents = async () => {
     tab.addEventListener('click', () => {
       void switchTab(String(tab.dataset.tab || 'prompts'));
     });
+  });
+
+  (await byId('history-btn'))?.addEventListener('click', () => {
+    void switchTab('history');
+  });
+
+  (await byId('settings-btn'))?.addEventListener('click', () => {
+    void switchTab('settings');
+  });
+
+  (await byId('back-btn'))?.addEventListener('click', () => {
+    void switchTab('prompts');
   });
 
   (await byId('add-prompt-btn'))?.addEventListener('click', () => {
