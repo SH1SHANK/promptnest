@@ -32,42 +32,25 @@ const initializeStorageKeys = async () => {
   }
 };
 
-/** Enables side panel open-on-action behavior once during startup/install lifecycle. */
-const configureSidePanelBehavior = async () => {
-  try {
-    await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
-  } catch (error) {
-    console.error('[PromptNest][ServiceWorker] Failed to configure side panel behavior.', error);
+// Manually open the side panel when the user clicks the extension action icon.
+// This often works more reliably than the declarative setPanelBehavior API.
+chrome.action.onClicked.addListener((tab) => {
+  if (tab && tab.windowId) {
+    chrome.sidePanel.open({ windowId: tab.windowId }).catch((error) => {
+      console.error('[PromptNest][ServiceWorker] Failed to open side panel on action click.', error);
+    });
   }
-};
-
-/** Ensures the side panel is enabled for the sender tab with the expected panel path. */
-const enableSidePanelForTab = async (tabId) => {
-  if (!Number.isInteger(tabId)) {
-    return;
-  }
-
-  await chrome.sidePanel.setOptions({
-    tabId,
-    enabled: true,
-    path: SIDE_PANEL_PATH
-  });
-};
+});
 
 /** Handles extension install lifecycle and applies initial storage and side panel setup. */
 const onInstalled = async () => {
   try {
     await initializeStorageKeys();
-    await configureSidePanelBehavior();
   } catch (error) {
     console.error('[PromptNest][ServiceWorker] Initialization failed.', error);
   }
 };
 
-/** Re-applies runtime side panel/storage session behavior after browser startup. */
-const onStartup = async () => {
-  await configureSidePanelBehavior();
-};
 
 /** Opens a new browser tab when content scripts request cross-LLM navigation. */
 const handleOpenLlmTab = async (url) => {
@@ -105,41 +88,35 @@ const handleSetSidePanelPayload = async (payload) => {
   }
 };
 
-/** Opens the side panel in the sender window and optionally persists payload. */
-const handleOpenSidePanel = async (sender, payload = null) => {
-  const tabId = sender?.tab?.id;
-  const windowId = sender?.tab?.windowId;
-
-  if (!Number.isInteger(windowId)) {
-    return { ok: false, error: 'Missing sender window context for side panel.' };
-  }
-
+/** Persists payload on side panel action. The panel must be opened manually by clicking the action icon. */
+const handleOpenSidePanel = async (_sender, payload = null) => {
   try {
-    // Must run immediately in direct response to user gesture.
-    await chrome.sidePanel.open({ windowId });
-
-    // Persist payload after opening to avoid breaking user-gesture requirement.
     if (payload && typeof payload === 'object') {
       const persisted = await handleSetSidePanelPayload(payload);
 
       if (!persisted.ok) {
-        return { ok: false, error: persisted.error || 'Side panel opened, but payload failed to persist.' };
+        return { ok: false, error: persisted.error || 'Payload failed to persist.' };
       }
     }
 
-    // Keep tab-scoped panel options in sync, but do not block successful open.
-    void enableSidePanelForTab(tabId).catch((error) => {
-      console.warn('[PromptNest][ServiceWorker] Failed to sync tab side panel options.', error);
-    });
-
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error?.message || 'Unable to open side panel.' };
+    return { ok: false, error: error?.message || 'Unable to handle payload.' };
   }
 };
 
 /** Routes runtime messages and keeps channel open for async response delivery. */
 const onRuntimeMessage = (message, sender, sendResponse) => {
+  let sidePanelPromise = null;
+
+  if (message?.action === 'OPEN_SIDEPANEL') {
+    const windowId = sender?.tab?.windowId;
+    if (windowId) {
+      // Must be called synchronously to consume gesture
+      sidePanelPromise = chrome.sidePanel.open({ windowId, tabId: sender.tab.id }).catch((err) => err);
+    }
+  }
+
   void (async () => {
     let responded = false;
 
@@ -164,7 +141,23 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
       }
 
       if (message?.action === 'OPEN_SIDEPANEL') {
-        respond(await handleOpenSidePanel(sender, message.payload || null));
+        const payloadResult = await handleOpenSidePanel(sender, message.payload || null);
+        
+        // Wait for the synchronous side panel open attempt to settle
+        let openError = null;
+        if (sidePanelPromise) {
+          const result = await sidePanelPromise;
+          if (result instanceof Error) {
+            openError = result.message;
+          }
+        }
+
+        if (openError) {
+          respond({ ok: false, error: `SidePanel Error: ${openError}` });
+          return;
+        }
+
+        respond(payloadResult);
         return;
       }
 
@@ -182,14 +175,8 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
   return true;
 };
 
-void configureSidePanelBehavior();
-
 chrome.runtime.onInstalled.addListener(() => {
   void onInstalled();
-});
-
-chrome.runtime.onStartup.addListener(() => {
-  void onStartup();
 });
 
 chrome.runtime.onMessage.addListener(onRuntimeMessage);

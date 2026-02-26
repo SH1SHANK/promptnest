@@ -266,11 +266,11 @@ const buildSelectedMessages = () => exportSelectionState.messageOrder
   }));
 
 /** Stores selected data in session storage and asks service worker to open side panel. */
-const openSidePanelWithSelection = async () => {
+const openSidePanelWithSelection = () => {
   const selected = buildSelectedMessages();
 
   if (!selected.length) {
-    await notify('Select at least one message to export.');
+    notify('Select at least one message to export.').catch(console.error);
     return { ok: false, error: 'No selected messages.' };
   }
 
@@ -283,45 +283,34 @@ const openSidePanelWithSelection = async () => {
   };
 
   try {
-    const response = await chrome.runtime.sendMessage({
-      action: OPEN_SIDEPANEL_ACTION,
+    chrome.runtime.sendMessage({
+      action: 'SET_SIDEPANEL_PAYLOAD',
       payload
+    }, (response) => {
+      // Background script stores the payload
+      if (!response?.ok) {
+        console.warn('[PromptNest] Side panel payload issue:', response?.error);
+      }
     });
-
-    if (!response?.ok) {
-      await notify(response?.error || 'Failed to open PromptNest side panel.');
-      return { ok: false, error: response?.error || 'Failed to open side panel.' };
-    }
 
     return { ok: true };
   } catch (error) {
-    await notify(error?.message || 'Failed to open PromptNest side panel.');
+    notify(error?.message || 'Failed to prepare PromptNest export.').catch(console.error);
     return { ok: false, error: error?.message || 'Failed to open side panel.' };
   }
 };
 
 /** Opens the side panel without mutating current message selection payload. */
-const openSidePanelOnly = async () => {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: OPEN_SIDEPANEL_ACTION });
-
-    if (!response?.ok) {
-      await notify(response?.error || 'Failed to open PromptNest side panel.');
-      return { ok: false, error: response?.error || 'Failed to open side panel.' };
-    }
-
-    return { ok: true };
-  } catch (error) {
-    await notify(error?.message || 'Failed to open PromptNest side panel.');
-    return { ok: false, error: error?.message || 'Failed to open side panel.' };
-  }
+const openSidePanelOnly = () => {
+  // Opening the panel is handled directly by primitive synchronous listeners now.
+  return { ok: true };
 };
 
 /** Selects all currently discovered message rows then opens side panel export view. */
-const openSidePanelWithAllMessages = async () => {
+const openSidePanelWithAllMessages = () => {
   if (!exportSelectionState.messageOrder.length) {
-    void scanSelectionTargets();
-    await notify('Messages are still loading. Please try again.');
+    scanSelectionTargets().catch(console.error);
+    notify('Messages are still loading. Please try again.').catch(console.error);
     return { ok: false, error: 'Messages still loading.' };
   }
 
@@ -333,8 +322,9 @@ const openSidePanelWithAllMessages = async () => {
     }
   });
 
-  void updateSelectionFab();
-  return openSidePanelWithSelection();
+  const response = openSidePanelWithSelection();
+  updateSelectionFab().catch(console.error);
+  return response;
 };
 
 /** Creates the floating export bar once and wires click handling for side panel open. */
@@ -353,8 +343,14 @@ const ensureSelectionFab = async () => {
 
   const trigger = root.querySelector('#pn-selection-fab-trigger');
 
-  trigger?.addEventListener('click', () => {
-    void openSidePanelWithSelection();
+  trigger?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    try {
+      chrome.runtime.sendMessage({ action: 'OPEN_SIDEPANEL' });
+      openSidePanelWithSelection();
+    } catch (error) {
+      console.error('[PromptNest] Failed to trigger export selection.', error);
+    }
   });
 
   if (document.body) {

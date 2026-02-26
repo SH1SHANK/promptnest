@@ -210,49 +210,52 @@ const onSavePromptClick = async (platform) => {
 };
 
 /** Opens side panel export with all visible messages preselected from current chat. */
-const onExportClick = async (_platform) => {
+const onExportClick = () => {
   if (window.__PN?.SidePanelExport?.openWithAllMessages) {
-    const response = await window.__PN.SidePanelExport.openWithAllMessages();
+    const response = window.__PN.SidePanelExport.openWithAllMessages();
 
     if (!response?.ok) {
-      await showNotification(response?.error || 'Failed to open side panel export.');
+      showNotification(response?.error || 'Failed to open side panel export.').catch(console.error);
     }
 
     return;
   }
 
-  await showNotification('Export selection is still initializing. Try again in a moment.');
+  showNotification('Export selection is still initializing. Try again in a moment.').catch(console.error);
 };
 
 /** Handles library action with migration guidance while side panel work is in progress. */
-const onLibraryClick = async () => {
+const onLibraryClick = () => {
   if (window.__PN?.SidePanelExport?.openPanelOnly) {
-    const response = await window.__PN.SidePanelExport.openPanelOnly();
+    const response = window.__PN.SidePanelExport.openPanelOnly();
 
     if (!response?.ok) {
-      await showNotification(response?.error || 'Failed to open side panel.');
+      showNotification(response?.error || 'Failed to open side panel.').catch(console.error);
     }
 
     return;
   }
 
-  await showNotification('PromptNest side panel is still initializing. Try again shortly.');
+  showNotification('PromptNest side panel is still initializing. Try again shortly.').catch(console.error);
 };
 
 /** Routes FAB action clicks to prompt save, export dialog, or library guidance. */
-const handleFabAction = async (platform, action) => {
+const handleFabAction = (platform, action) => {
   if (action === 'save-prompt') {
-    await onSavePromptClick(platform);
+    onSavePromptClick(platform).catch(console.error);
     return;
   }
 
   if (action === 'export') {
-    await onExportClick(platform);
+    // Payload preparation is heavy and might break gesture, so we trigger panel open first
+    chrome.runtime.sendMessage({ action: 'OPEN_SIDEPANEL' });
+    onExportClick();
     return;
   }
 
   if (action === 'library') {
-    await onLibraryClick();
+    chrome.runtime.sendMessage({ action: 'OPEN_SIDEPANEL' });
+    onLibraryClick();
   }
 };
 
@@ -262,21 +265,24 @@ const createToolbar = async () => {
   root.id = 'pn-fab-root';
   root.innerHTML = `
     <div id="pn-fab-menu" class="pn-fab-menu hidden">
-      <button class="pn-fab-action" data-action="save-prompt" type="button">
-        <span class="pn-fab-icon">💾</span>
+      <button class="pn-fab-action" data-action="save-prompt" type="button" aria-label="Save current Prompt">
+        <span class="pn-fab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg></span>
         <span class="pn-fab-label">Save Prompt</span>
       </button>
-      <button class="pn-fab-action" data-action="export" type="button">
-        <span class="pn-fab-icon">↑</span>
+      <button class="pn-fab-action" data-action="export" type="button" aria-label="Export Chat Thread">
+        <span class="pn-fab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg></span>
         <span class="pn-fab-label">Export Chat</span>
       </button>
-      <button class="pn-fab-action" data-action="library" type="button">
-        <span class="pn-fab-icon">⌘</span>
-        <span class="pn-fab-label">Prompt Library</span>
+      <button class="pn-fab-action" data-action="library" type="button" aria-label="Open Prompt Library">
+        <span class="pn-fab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg></span>
+        <span class="pn-fab-label">Library</span>
       </button>
     </div>
-    <button id="pn-fab-trigger" type="button" aria-label="Toggle PromptNest actions">
-      <span class="pn-fab-logo">PN</span>
+    <button id="pn-fab-trigger" type="button" aria-label="PromptNest Actions">
+      <svg class="pn-fab-logo" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
     </button>
   `;
 
@@ -301,11 +307,19 @@ const attachHandlers = async (platform) => {
 
   actions.forEach((actionButton) => {
     actionButton.addEventListener('click', (event) => {
+      event.preventDefault();
       event.stopPropagation();
-      void (async () => {
-        await toggleFabMenu(false);
-        await handleFabAction(platform, String(actionButton.dataset.action || ''));
-      })();
+      
+      const actionLabel = String(actionButton.dataset.action || '');
+      
+      // Fire side panel immediately before any other synchronous DOM work strips the gesture
+      if (actionLabel === 'library' || actionLabel === 'export') {
+        try { chrome.runtime.sendMessage({ action: 'OPEN_SIDEPANEL' }); } catch(e) {}
+      }
+
+      // Side panel UI requires synchronous user gesture propagation. Do not use async/await here.
+      toggleFabMenu(false).catch(console.error);
+      handleFabAction(platform, actionLabel);
     });
   });
 

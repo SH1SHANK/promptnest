@@ -298,6 +298,17 @@ body.pn-popup::-webkit-scrollbar-thumb:hover {
   font-family: var(--font-mono);
 }
 
+.pn-tag-pill--clickable {
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.pn-tag-pill--clickable:hover {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .pn-card-actions {
   display: flex;
   gap: 8px;
@@ -345,6 +356,23 @@ body.pn-popup::-webkit-scrollbar-thumb:hover {
   background: transparent;
 }
 
+.pn-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+
+.pn-icon-btn:hover {
+  color: var(--text-primary);
+}
+
+.pn-btn svg {
+  vertical-align: middle;
+}
+
 .pn-btn-danger {
   border-color: rgba(248, 113, 113, 0.4);
   color: #ffd1d1;
@@ -373,16 +401,22 @@ body.pn-popup::-webkit-scrollbar-thumb:hover {
 .pn-empty-state {
   border: 1px dashed var(--border-default);
   border-radius: 10px;
-  padding: 18px 12px;
+  padding: 36px 20px;
   text-align: center;
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.01);
+  background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.pn-empty-state:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .pn-empty-state svg {
-  width: 24px;
-  height: 24px;
-  margin-bottom: 8px;
+  width: 28px;
+  height: 28px;
+  margin-bottom: 12px;
   stroke: var(--text-muted);
 }
 

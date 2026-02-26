@@ -682,7 +682,17 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
   tagsWrap.className = 'pn-tag-wrap';
 
   for (const tag of prompt.tags || []) {
-    tagsWrap.appendChild(await createTagPill(tag));
+    const pill = await createTagPill(tag);
+    pill.classList.add('pn-tag-pill--clickable');
+    pill.title = `Filter by #${tag}`;
+    pill.addEventListener('click', () => {
+      const search = document.getElementById('prompt-search');
+      if (search) {
+        search.value = tag;
+      }
+      void renderPrompts(tag);
+    });
+    tagsWrap.appendChild(pill);
   }
 
   const actions = document.createElement('div');
@@ -691,7 +701,7 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
   const injectButton = document.createElement('button');
   injectButton.className = 'pn-btn pn-btn--ghost';
   injectButton.type = 'button';
-  injectButton.textContent = 'Inject';
+  injectButton.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -1px;"><path d="M7 11v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3a4 4 0 0 0 4-4V4a2 2 0 0 1 4 0v5h3.6a2 2 0 0 1 1.93 2.5l-2 7a2 2 0 0 1-1.93 1.5H8"></path></svg>Use Prompt`;
 
   if (!canInject) {
     injectButton.disabled = true;
@@ -711,7 +721,7 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
   const deleteButton = document.createElement('button');
   deleteButton.className = 'pn-btn pn-btn-danger';
   deleteButton.type = 'button';
-  deleteButton.textContent = 'Delete';
+  deleteButton.textContent = 'Remove';
 
   deleteButton.addEventListener('click', () => {
     void (async () => {
@@ -1518,6 +1528,26 @@ const bindSessionPayloadUpdates = async () => {
       }
     })();
   });
+
+  // Hot-reload the workspace when prompts are modified from content scripts
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local' || !changes.prompts) {
+      return;
+    }
+
+    void (async () => {
+      await renderPrompts(String(document.getElementById('prompt-search')?.value || ''));
+      await renderTags();
+    })();
+  });
+};
+
+/** Refreshes main payload panels manually. */
+const performWorkspaceRefresh = async () => {
+  await renderPrompts(String(document.getElementById('prompt-search')?.value || ''));
+  await renderHistory();
+  await renderTags();
+  await showToast('Workspace refreshed.');
 };
 
 /** Binds side panel event handlers for tabs, modal, search, export, and settings. */
@@ -1530,6 +1560,10 @@ const bindEvents = async () => {
 
   (await byId('add-prompt-btn'))?.addEventListener('click', () => {
     void openModal();
+  });
+
+  (await byId('refresh-btn'))?.addEventListener('click', () => {
+    void performWorkspaceRefresh();
   });
 
   (await byId('save-new-prompt'))?.addEventListener('click', () => {
