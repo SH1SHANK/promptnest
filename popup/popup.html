@@ -54,8 +54,11 @@
         </label>
 
         <label class="pn-field">
-          <span>Tags (comma separated)</span>
-          <input id="prompt-tags" type="text" placeholder="writing, coding, summary" />
+          <span>Tags</span>
+          <div class="pn-tag-badges" id="tag-badges-wrap">
+            <input id="prompt-tags-input" class="pn-tag-badges__input" type="text" placeholder="Type a tag and press Space" />
+          </div>
+          <input id="prompt-tags" type="hidden" />
         </label>
 
         <div class="pn-modal__actions">

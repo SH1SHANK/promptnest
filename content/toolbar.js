@@ -39,6 +39,52 @@ const showNotification = async (message) => {
   }, 2500);
 };
 
+/** Syncs badge tags to the hidden pn-save-tags-hidden input. */
+const syncBadgesToHidden = () => {
+  const wrap = document.getElementById('pn-tag-badges-wrap');
+  const hidden = document.getElementById('pn-save-tags-hidden');
+  if (!wrap || !hidden) return;
+
+  const tags = Array.from(wrap.querySelectorAll('.pn-tag-badge'))
+    .map((b) => b.dataset.tag)
+    .filter(Boolean);
+  hidden.value = tags.join(', ');
+};
+
+/** Adds a single tag badge to the badge container and syncs to hidden input. */
+const addTagBadge = (tag) => {
+  const normalized = String(tag || '').trim().toLowerCase();
+  // Strip out spaces and commas for individual badges
+  const cleanTag = normalized.replace(/[,\s]/g, '');
+  if (!cleanTag) return;
+
+  const wrap = document.getElementById('pn-tag-badges-wrap');
+  const input = document.getElementById('pn-save-tags-input');
+  if (!wrap) return;
+
+  // Prevent duplicate badges
+  const existing = Array.from(wrap.querySelectorAll('.pn-tag-badge')).map((b) => b.dataset.tag);
+  if (existing.includes(cleanTag)) return;
+
+  const badge = document.createElement('span');
+  badge.className = 'pn-tag-badge';
+  badge.dataset.tag = cleanTag;
+  badge.innerHTML = `${cleanTag}<button type="button" class="pn-tag-badge__remove">×</button>`;
+
+  badge.querySelector('.pn-tag-badge__remove')?.addEventListener('click', () => {
+    badge.remove();
+    syncBadgesToHidden();
+  });
+
+  if (input) {
+    wrap.insertBefore(badge, input);
+  } else {
+    wrap.appendChild(badge);
+  }
+
+  syncBadgesToHidden();
+};
+
 /** Creates the save prompt modal markup once and appends it to the page body. */
 const ensureSaveModal = async () => {
   const existing = document.getElementById('pn-save-modal');
@@ -59,8 +105,11 @@ const ensureSaveModal = async () => {
         <input id="pn-save-title" type="text" placeholder="Prompt title" />
       </label>
       <label class="pn-save-modal__field">
-        <span>Tags (comma separated)</span>
-        <input id="pn-save-tags" type="text" placeholder="research, coding" />
+        <span>Tags</span>
+        <div class="pn-tag-badges" id="pn-tag-badges-wrap">
+          <input id="pn-save-tags-input" class="pn-tag-badges__input" type="text" placeholder="Type a tag and press Space" />
+        </div>
+        <input id="pn-save-tags-hidden" type="hidden" />
       </label>
       <div class="pn-save-modal__actions">
         <button id="pn-save-cancel" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
@@ -77,7 +126,10 @@ const ensureSaveModal = async () => {
 const openSaveModal = async (currentText) => {
   const modal = await ensureSaveModal();
   const titleInput = modal.querySelector('#pn-save-title');
-  const tagsInput = modal.querySelector('#pn-save-tags');
+  const tagsInput = modal.querySelector('#pn-save-tags-input');
+  const tagsHidden = modal.querySelector('#pn-save-tags-hidden');
+  const badgesWrap = modal.querySelector('#pn-tag-badges-wrap');
+  
   pendingPromptText = String(currentText || '').trim();
 
   if (titleInput) {
@@ -86,6 +138,14 @@ const openSaveModal = async (currentText) => {
 
   if (tagsInput) {
     tagsInput.value = '';
+  }
+
+  if (tagsHidden) {
+    tagsHidden.value = '';
+  }
+
+  if (badgesWrap) {
+    badgesWrap.querySelectorAll('.pn-tag-badge').forEach((b) => b.remove());
   }
 
   modal.classList.remove('pn-hidden');
@@ -102,9 +162,10 @@ const closeSaveModal = async () => {
 const confirmSavePrompt = async () => {
   const modal = await ensureSaveModal();
   const titleInput = modal.querySelector('#pn-save-title');
-  const tagsInput = modal.querySelector('#pn-save-tags');
+  const tagsHidden = modal.querySelector('#pn-save-tags-hidden');
+  
   const title = String(titleInput?.value || '').trim();
-  const tagsValue = String(tagsInput?.value || '').trim();
+  const tagsValue = String(tagsHidden?.value || '').trim();
   const tags = tagsValue ? tagsValue.split(',').map((tag) => tag.trim()).filter(Boolean) : [];
 
   if (!pendingPromptText) {
@@ -140,18 +201,56 @@ const bindSaveModalEvents = async () => {
   const cancelButton = modal.querySelector('#pn-save-cancel');
   const confirmButton = modal.querySelector('#pn-save-confirm');
   const backdrop = modal.querySelector('[data-modal-close]');
+  const tagBadgeInput = modal.querySelector('#pn-save-tags-input');
+  const badgeWrap = modal.querySelector('#pn-tag-badges-wrap');
 
   cancelButton?.addEventListener('click', () => {
     void closeSaveModal();
   });
 
   confirmButton?.addEventListener('click', () => {
+    // Add any pending tag text before saving
+    if (tagBadgeInput && tagBadgeInput.value.trim()) {
+      addTagBadge(tagBadgeInput.value);
+      tagBadgeInput.value = '';
+    }
     void confirmSavePrompt();
   });
 
   backdrop?.addEventListener('click', () => {
     void closeSaveModal();
   });
+
+  if (tagBadgeInput) {
+    tagBadgeInput.addEventListener('keydown', (e) => {
+      const val = String(tagBadgeInput.value || '').trim();
+      if ((e.key === ' ' || e.key === 'Enter' || e.key === ',') && val) {
+        e.preventDefault();
+        addTagBadge(val);
+        tagBadgeInput.value = '';
+      }
+      if (e.key === 'Backspace' && !tagBadgeInput.value) {
+        const badges = modal.querySelectorAll('#pn-tag-badges-wrap .pn-tag-badge');
+        const last = badges[badges.length - 1];
+        if (last) last.remove();
+        syncBadgesToHidden();
+      }
+    });
+
+    tagBadgeInput.addEventListener('blur', () => {
+      const val = String(tagBadgeInput.value || '').trim();
+      if (val) {
+        addTagBadge(val);
+        tagBadgeInput.value = '';
+      }
+    });
+  }
+
+  if (badgeWrap && tagBadgeInput) {
+    badgeWrap.addEventListener('click', (e) => {
+      if (e.target === badgeWrap) tagBadgeInput.focus();
+    });
+  }
 
   modal.dataset.bound = 'true';
 };
@@ -209,34 +308,60 @@ const onSavePromptClick = async (platform) => {
   await openSaveModal(text);
 };
 
-/** Opens side panel export with all visible messages preselected from current chat. */
-const onExportClick = () => {
-  if (window.__PN?.SidePanelExport?.openWithAllMessages) {
-    const response = window.__PN.SidePanelExport.openWithAllMessages();
+/** Opens side panel export with selected messages, falling back to all scraped messages if none selected. */
+const onExportClick = async (platform) => {
+  try {
+    let messages = [];
 
-    if (!response?.ok) {
-      showNotification(response?.error || 'Failed to open side panel export.').catch(console.error);
+    // 1. Check if the user manually selected specific checkboxes
+    if (typeof window.__PN?.SidePanelExport?.getSelectedMessages === 'function') {
+      const selected = window.__PN.SidePanelExport.getSelectedMessages();
+      if (Array.isArray(selected) && selected.length > 0) {
+        messages = selected;
+      }
     }
 
-    return;
-  }
+    // 2. If no explicit selection, fallback to exporting the entire conversation
+    if (messages.length === 0) {
+      messages = await window.Scraper.scrape(platform);
+    }
 
-  showNotification('Export selection is still initializing. Try again in a moment.').catch(console.error);
+    if (!messages || messages.length === 0) {
+      await showNotification('No messages found in this conversation.');
+      return;
+    }
+
+    // Stage scraped payload in local storage for the side panel to read
+    const payload = {
+      title: document.title?.slice(0, 80) || 'Chat Export',
+      platform: String(platform || 'unknown'),
+      url: window.location.href,
+      createdAt: new Date().toISOString(),
+      messages
+    };
+
+    await chrome.storage.local.set({ pnSidePanelPayload: payload });
+
+    // Ask background to open side panel and navigate to export view
+    chrome.runtime.sendMessage({ action: 'openExport' }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.warn('[PromptNest] Could not open export panel:', chrome.runtime.lastError.message);
+        showNotification('Could not open export panel. Try clicking the extension icon.').catch(console.error);
+      }
+    });
+  } catch (error) {
+    console.error('[PromptNest] Export flow failed:', error);
+    await showNotification('Export failed. Try again.');
+  }
 };
 
-/** Handles library action with migration guidance while side panel work is in progress. */
+/** Opens the side panel via background service worker. */
 const onLibraryClick = () => {
-  if (window.__PN?.SidePanelExport?.openPanelOnly) {
-    const response = window.__PN.SidePanelExport.openPanelOnly();
-
-    if (!response?.ok) {
-      showNotification(response?.error || 'Failed to open side panel.').catch(console.error);
+  chrome.runtime.sendMessage({ action: 'openSidePanel' }, () => {
+    if (chrome.runtime.lastError) {
+      showNotification('Open PromptNest from the extension icon.').catch(console.error);
     }
-
-    return;
-  }
-
-  showNotification('PromptNest side panel is still initializing. Try again shortly.').catch(console.error);
+  });
 };
 
 /** Routes FAB action clicks to prompt save, export dialog, or library guidance. */
@@ -247,14 +372,11 @@ const handleFabAction = (platform, action) => {
   }
 
   if (action === 'export') {
-    // Payload preparation is heavy and might break gesture, so we trigger panel open first
-    chrome.runtime.sendMessage({ action: 'OPEN_SIDEPANEL' });
-    onExportClick();
+    onExportClick(platform).catch(console.error);
     return;
   }
 
   if (action === 'library') {
-    chrome.runtime.sendMessage({ action: 'OPEN_SIDEPANEL' });
     onLibraryClick();
   }
 };
@@ -311,11 +433,6 @@ const attachHandlers = async (platform) => {
       event.stopPropagation();
       
       const actionLabel = String(actionButton.dataset.action || '');
-      
-      // Fire side panel immediately before any other synchronous DOM work strips the gesture
-      if (actionLabel === 'library' || actionLabel === 'export') {
-        try { chrome.runtime.sendMessage({ action: 'OPEN_SIDEPANEL' }); } catch(e) {}
-      }
 
       // Side panel UI requires synchronous user gesture propagation. Do not use async/await here.
       toggleFabMenu(false).catch(console.error);

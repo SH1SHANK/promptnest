@@ -13,11 +13,10 @@
       <div class="pn-header-actions">
         <button
           id="back-btn"
-          class="pn-btn pn-btn--ghost pn-icon-btn hidden"
+          class="pn-btn pn-btn--ghost pn-icon-btn hidden pn-mr-auto"
           type="button"
           title="Back to Prompts"
           aria-label="Back to Prompts"
-          style="margin-right: auto;"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="19" y1="12" x2="5" y2="12"></line>
@@ -82,6 +81,10 @@
         type="text"
         placeholder="Search prompts by title, text, or tags"
       />
+      <span id="pn-search-spark" class="pn-search-spark pn-hidden">✦</span>
+      <div id="pn-ai-bar" class="pn-ai-bar pn-ai-bar--hidden">
+        <div class="pn-ai-bar__line"></div>
+      </div>
     </div>
 
     <nav class="pn-tab-bar" aria-label="PromptNest tabs">
@@ -89,11 +92,15 @@
         Prompts
       </button>
       <button class="tab pn-tab" data-tab="tags" type="button">Tags</button>
-      </button>
     </nav>
 
     <main class="pn-main pn-sidepanel-main">
       <section class="tab-content pn-tab-content active" data-tab="prompts">
+        <div id="pn-smart-strip" class="pn-smart-strip pn-hidden">
+          <span class="pn-smart-strip__label">✦ Matches your current topic</span>
+          <div id="pn-smart-chips" class="pn-smart-chips"></div>
+          <button class="pn-smart-strip__close" id="pn-smart-close" type="button">×</button>
+        </div>
         <div id="prompt-list" class="pn-list"></div>
       </section>
 
@@ -147,170 +154,172 @@
       </section>
 
       <section class="tab-content pn-tab-content" data-tab="tags">
-        <div class="pn-settings-card">
-          <h3 class="pn-section-title">Tag Manager</h3>
-          <p class="pn-card-meta">
-            Rename, remove, or filter prompts by existing tags.
-          </p>
+        <div class="pn-tags-view">
+          <div id="pn-tag-filter-bar" class="pn-tag-filter-bar"></div>
+          <div id="tag-list" class="pn-tag-list">
+            <div id="pn-tags-empty" class="pn-empty-state">
+              <div class="pn-empty-icon">🏷️</div>
+              <p>No tags yet.</p>
+              <span>Tags you add to prompts will appear here.</span>
+            </div>
+          </div>
         </div>
-        <div id="tag-list" class="pn-list"></div>
       </section>
 
       <section class="tab-content pn-tab-content" data-tab="settings">
-        <div class="pn-settings-shell">
-          <div class="pn-settings-card pn-settings-hero">
-            <h3 class="pn-section-title">Workspace Settings</h3>
-            <p class="pn-card-meta">
-              Tune AI behavior, prompt quality checks, export defaults, and
-              personalization from one place.
+        <div class="pn-sv">
+          <!-- Hero -->
+          <div class="pn-sv-hero">
+            <h3 class="pn-sv-hero__title">Settings</h3>
+            <p class="pn-sv-hero__sub">Tune intelligence, exports, and personalization.</p>
+          </div>
+
+          <!-- ── Intelligence ─────────────────────────── -->
+          <div class="pn-sv-section">
+            <h4 class="pn-sv-heading">Intelligence</h4>
+
+            <div class="pn-sv-row">
+              <div class="pn-sv-row__copy">
+                <span class="pn-sv-row__label">Smart features</span>
+                <span class="pn-sv-row__desc">Semantic ranking, tag suggestions, and duplicate checks.</span>
+              </div>
+              <label class="pn-toggle">
+                <input id="setting-enable-ai" type="checkbox" checked />
+                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
+              </label>
+            </div>
+
+            <div class="pn-sv-row">
+              <div class="pn-sv-row__copy">
+                <span class="pn-sv-row__label">Semantic search</span>
+                <span class="pn-sv-row__desc">Rank results by meaning, not just keywords.</span>
+              </div>
+              <label class="pn-toggle">
+                <input id="setting-semantic-search" type="checkbox" checked />
+                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
+              </label>
+            </div>
+
+            <div class="pn-sv-model-pill" id="pn-model-pill">
+              <span class="pn-sv-model-pill__dot"></span>
+              <span id="ai-progress-text">Initializing…</span>
+            </div>
+          </div>
+
+          <hr class="pn-sv-divider" />
+
+          <!-- ── Prompt Quality ───────────────────────── -->
+          <div class="pn-sv-section">
+            <h4 class="pn-sv-heading">Prompt Quality</h4>
+
+            <div class="pn-sv-row">
+              <div class="pn-sv-row__copy">
+                <span class="pn-sv-row__label">Auto-tag suggestions</span>
+                <span class="pn-sv-row__desc">Suggest tags based on prompt content.</span>
+              </div>
+              <label class="pn-toggle">
+                <input id="setting-auto-suggest" type="checkbox" checked />
+                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
+              </label>
+            </div>
+
+            <div class="pn-sv-row">
+              <div class="pn-sv-row__copy">
+                <span class="pn-sv-row__label">Duplicate detection</span>
+                <span class="pn-sv-row__desc">Warn when saving near-identical prompts.</span>
+              </div>
+              <label class="pn-toggle">
+                <input id="setting-duplicate-check" type="checkbox" checked />
+                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
+              </label>
+            </div>
+          </div>
+
+          <hr class="pn-sv-divider" />
+
+          <!-- ── Export ───────────────────────────────── -->
+          <div class="pn-sv-section">
+            <h4 class="pn-sv-heading">Export</h4>
+
+            <label class="pn-sv-field">
+              <span class="pn-sv-field__label">Default format</span>
+              <select id="setting-export-format" class="pn-sv-select">
+                <option value="markdown">Markdown (.md)</option>
+                <option value="pdf">PDF (.pdf)</option>
+              </select>
+            </label>
+
+            <div class="pn-sv-row pn-sv-row--compact">
+              <span class="pn-sv-row__label">Include date</span>
+              <label class="pn-toggle pn-toggle--sm">
+                <input id="setting-export-date" type="checkbox" checked />
+                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
+              </label>
+            </div>
+
+            <div class="pn-sv-row pn-sv-row--compact">
+              <span class="pn-sv-row__label">Include platform</span>
+              <label class="pn-toggle pn-toggle--sm">
+                <input id="setting-export-platform" type="checkbox" checked />
+                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
+              </label>
+            </div>
+          </div>
+
+          <hr class="pn-sv-divider" />
+
+          <!-- ── Connections ──────────────────────────── -->
+          <div class="pn-sv-section">
+            <h4 class="pn-sv-heading">Connections</h4>
+
+            <div class="pn-sv-api-row">
+              <div class="pn-sv-api-row__icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <input
+                id="setting-gemini-key"
+                type="password"
+                class="pn-sv-api-row__input"
+                placeholder="Gemini API key"
+                autocomplete="off"
+              />
+              <button type="button" id="check-api-key" class="pn-sv-api-row__check" title="Test connection">Check</button>
+              <button type="button" id="toggle-key-vis" class="pn-sv-api-row__eye" title="Show/hide key">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <p class="pn-sv-api-hint">
+              Powers contextual suggestions.
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" class="pn-sv-api-link">Get a free key →</a>
             </p>
           </div>
 
-          <div class="pn-settings-grid">
-            <article class="pn-settings-card pn-settings-section">
-              <header class="pn-settings-section-head">
-                <h4 class="pn-settings-heading">AI and Search</h4>
-                <p class="pn-card-meta">
-                  Control smart search and ranking behavior (no model
-                  downloads).
-                </p>
-              </header>
+          <hr class="pn-sv-divider" />
 
-              <label class="pn-check-row pn-check-row--stacked">
-                <input id="setting-enable-ai" type="checkbox" checked />
-                <span class="pn-check-copy">
-                  <strong>Enable smart features</strong>
-                  <small
-                    >Uses built-in heuristics for search ranking, tag
-                    suggestions, and duplicate checks.</small
-                  >
-                </span>
-              </label>
+          <!-- ── Personalization ──────────────────────── -->
+          <div class="pn-sv-section">
+            <h4 class="pn-sv-heading">Personalization</h4>
 
-              <label class="pn-check-row pn-check-row--stacked">
-                <input id="setting-semantic-search" type="checkbox" checked />
-                <span class="pn-check-copy">
-                  <strong>Use relevance ranking for prompts</strong>
-                  <small
-                    >Ranks results by title, text, and tag overlap before
-                    fallback keyword filtering.</small
-                  >
-                </span>
-              </label>
-            </article>
-
-            <article class="pn-settings-card pn-settings-section">
-              <header class="pn-settings-section-head">
-                <h4 class="pn-settings-heading">Prompt Quality</h4>
-                <p class="pn-card-meta">
-                  Automate checks when creating new prompts.
-                </p>
-              </header>
-
-              <label class="pn-check-row pn-check-row--stacked">
-                <input id="setting-auto-suggest" type="checkbox" checked />
-                <span class="pn-check-copy">
-                  <strong>Auto-suggest tags when adding prompts</strong>
-                  <small>Suggests topical tags based on prompt intent.</small>
-                </span>
-              </label>
-
-              <label class="pn-check-row pn-check-row--stacked">
-                <input id="setting-duplicate-check" type="checkbox" checked />
-                <span class="pn-check-copy">
-                  <strong>Run duplicate prompt detection on save</strong>
-                  <small>Warns before storing highly similar prompts.</small>
-                </span>
-              </label>
-            </article>
-
-            <article class="pn-settings-card pn-settings-section">
-              <header class="pn-settings-section-head">
-                <h4 class="pn-settings-heading">Export Defaults</h4>
-                <p class="pn-card-meta">
-                  Applied each time selected chat messages are exported.
-                </p>
-              </header>
-
-              <label class="pn-field">
-                <span>Default Export Format</span>
-                <select id="setting-export-format">
-                  <option value="markdown">Markdown (.md)</option>
-                  <option value="pdf">PDF (.pdf)</option>
-                </select>
-              </label>
-
-              <label class="pn-check-row pn-check-row--stacked">
-                <input id="setting-export-date" type="checkbox" checked />
-                <span class="pn-check-copy">
-                  <strong>Include date by default</strong>
-                  <small>Adds export timestamp in output metadata.</small>
-                </span>
-              </label>
-
-              <label class="pn-check-row pn-check-row--stacked">
-                <input id="setting-export-platform" type="checkbox" checked />
-                <span class="pn-check-copy">
-                  <strong>Include platform label by default</strong>
-                  <small
-                    >Adds source platform tags like ChatGPT or Claude.</small
-                  >
-                </span>
-              </label>
-            </article>
-
-            <article class="pn-settings-card pn-settings-section">
-              <header class="pn-settings-section-head">
-                <h4 class="pn-settings-heading">Personalization</h4>
-                <p class="pn-card-meta">
-                  Improves context-aware tag and search relevance.
-                </p>
-              </header>
-
-              <label class="pn-field">
-                <span>User Context for AI Suggestions</span>
-                <textarea
-                  id="setting-user-context"
-                  rows="4"
-                  placeholder="Example: I build TypeScript browser extensions and write technical docs."
-                ></textarea>
-              </label>
-            </article>
-
-            <article
-              class="pn-settings-card pn-settings-section pn-settings-section--wide"
-            >
-              <header class="pn-settings-section-head">
-                <h4 class="pn-settings-heading">Runtime Mode</h4>
-                <p class="pn-card-meta">
-                  PromptNest now runs model-free smart features with no local
-                  model payloads.
-                </p>
-              </header>
-              <p id="ai-progress-text" class="pn-card-meta">
-                Model-free mode active. No model download required.
-              </p>
-            </article>
+            <label class="pn-sv-field">
+              <span class="pn-sv-field__label">Your context</span>
+              <textarea
+                id="setting-user-context"
+                class="pn-sv-textarea"
+                rows="3"
+                placeholder="e.g. I build TypeScript browser extensions and write technical docs."
+              ></textarea>
+            </label>
+            <p class="pn-sv-api-hint">Helps smart features understand your workflow.</p>
           </div>
 
-          <div class="pn-settings-actions">
-            <button
-              id="reset-settings-btn"
-              class="pn-btn pn-btn--ghost"
-              type="button"
-            >
-              Reset Defaults
-            </button>
-            <button
-              id="save-settings-btn"
-              class="pn-btn pn-btn--primary"
-              type="button"
-              disabled
-            >
-              Save Settings
-            </button>
+          <!-- ── Actions ──────────────────────────────── -->
+          <div class="pn-sv-actions">
+            <button id="reset-settings-btn" class="pn-btn pn-btn--ghost" type="button">Reset</button>
+            <div class="pn-sv-actions__right">
+              <p id="settings-status" class="pn-sv-status"></p>
+              <button id="save-settings-btn" class="pn-btn pn-btn--primary" type="button" disabled>Save</button>
+            </div>
           </div>
-          <p id="settings-status" class="pn-card-meta pn-settings-status"></p>
         </div>
       </section>
     </main>
@@ -335,13 +344,21 @@
         </label>
 
         <label class="pn-field">
-          <span>Tags (comma separated)</span>
-          <input
-            id="prompt-tags"
-            type="text"
-            placeholder="writing, coding, summary"
-          />
+          <span>Tags</span>
+          <div class="pn-tag-badges" id="tag-badges-wrap">
+            <input
+              id="prompt-tags-input"
+              class="pn-tag-badges__input"
+              type="text"
+              placeholder="Type a tag and press Space"
+            />
+          </div>
+          <input id="prompt-tags" type="hidden" />
         </label>
+
+        <div id="pn-tag-suggestions" class="pn-tag-suggestions"></div>
+
+        <div id="pn-duplicate-warning" class="pn-duplicate-warning pn-hidden"></div>
 
         <div class="pn-modal__actions">
           <button id="cancel-modal" class="pn-btn pn-btn--ghost" type="button">
@@ -368,9 +385,11 @@
     <script src="../libs/jspdf.min.js"></script>
     <script src="../libs/html2pdf.bundle.min.js"></script>
     <script src="../libs/turndown.js"></script>
+    <script src="../libs/markdown-it.min.js"></script>
     <script src="../utils/storage.js"></script>
     <script src="../utils/exporter.js"></script>
     <script src="../utils/ai.js"></script>
+    <script src="../utils/ai-bridge.js"></script>
     <script src="sidepanel.js"></script>
   </body>
 </html>

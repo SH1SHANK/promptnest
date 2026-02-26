@@ -13,6 +13,50 @@ const byId = async (id) => document.getElementById(id);
 /** Converts a comma-separated tag string into a normalized string array. */
 const parseTags = async (raw) => String(raw || '').split(',').map((item) => item.trim()).filter(Boolean);
 
+/** Syncs badge tags to the hidden prompt-tags input. */
+const syncBadgesToHidden = () => {
+  const wrap = document.getElementById('tag-badges-wrap');
+  const hidden = document.getElementById('prompt-tags');
+  if (!wrap || !hidden) return;
+
+  const tags = Array.from(wrap.querySelectorAll('.pn-tag-badge'))
+    .map((b) => b.dataset.tag)
+    .filter(Boolean);
+  hidden.value = tags.join(', ');
+};
+
+/** Adds a single tag badge to the badge container and syncs to hidden input. */
+const addTagBadge = (tag) => {
+  const normalized = String(tag || '').trim().toLowerCase();
+  const cleanTag = normalized.replace(/[,\s]/g, '');
+  if (!cleanTag) return;
+
+  const wrap = document.getElementById('tag-badges-wrap');
+  const input = document.getElementById('prompt-tags-input');
+  if (!wrap) return;
+
+  const existing = Array.from(wrap.querySelectorAll('.pn-tag-badge')).map((b) => b.dataset.tag);
+  if (existing.includes(cleanTag)) return;
+
+  const badge = document.createElement('span');
+  badge.className = 'pn-tag-badge';
+  badge.dataset.tag = cleanTag;
+  badge.innerHTML = `${cleanTag}<button type="button" class="pn-tag-badge__remove">×</button>`;
+
+  badge.querySelector('.pn-tag-badge__remove')?.addEventListener('click', () => {
+    badge.remove();
+    syncBadgesToHidden();
+  });
+
+  if (input) {
+    wrap.insertBefore(badge, input);
+  } else {
+    wrap.appendChild(badge);
+  }
+
+  syncBadgesToHidden();
+};
+
 /** Creates and displays a short-lived popup toast notification. */
 const showToast = async (message) => {
   const toast = document.createElement('div');
@@ -352,6 +396,8 @@ const openModal = async () => {
   const title = await byId('prompt-title');
   const text = await byId('prompt-text');
   const tags = await byId('prompt-tags');
+  const tagsInput = await byId('prompt-tags-input');
+  const badgeWrap = document.getElementById('tag-badges-wrap');
 
   if (title) {
     title.value = '';
@@ -363,6 +409,14 @@ const openModal = async () => {
 
   if (tags) {
     tags.value = '';
+  }
+
+  if (tagsInput) {
+    tagsInput.value = '';
+  }
+
+  if (badgeWrap) {
+    badgeWrap.querySelectorAll('.pn-tag-badge').forEach((b) => b.remove());
   }
 
   await resetDuplicateState();
@@ -408,6 +462,7 @@ const savePromptFromModal = async () => {
   const titleInput = await byId('prompt-title');
   const textInput = await byId('prompt-text');
   const tagsInput = await byId('prompt-tags');
+  const tagBadgeInput = await byId('prompt-tags-input');
 
   if (!titleInput || !textInput || !tagsInput) {
     return;
@@ -419,6 +474,11 @@ const savePromptFromModal = async () => {
   if (!titleValue || !textValue) {
     await showToast('Title and prompt text are required.');
     return;
+  }
+
+  if (tagBadgeInput && tagBadgeInput.value.trim()) {
+    addTagBadge(tagBadgeInput.value);
+    tagBadgeInput.value = '';
   }
 
   await prefillSuggestedTags();
@@ -497,6 +557,39 @@ const bindEvents = async () => {
   window.addEventListener('resize', () => {
     void updateTabIndicator();
   });
+
+  const tagBadgeInput = await byId('prompt-tags-input');
+  if (tagBadgeInput) {
+    tagBadgeInput.addEventListener('keydown', (e) => {
+      const val = String(tagBadgeInput.value || '').trim();
+      if ((e.key === ' ' || e.key === 'Enter' || e.key === ',') && val) {
+        e.preventDefault();
+        addTagBadge(val);
+        tagBadgeInput.value = '';
+      }
+      if (e.key === 'Backspace' && !tagBadgeInput.value) {
+        const badges = document.querySelectorAll('#tag-badges-wrap .pn-tag-badge');
+        const last = badges[badges.length - 1];
+        if (last) last.remove();
+        syncBadgesToHidden();
+      }
+    });
+
+    tagBadgeInput.addEventListener('blur', () => {
+      const val = String(tagBadgeInput.value || '').trim();
+      if (val) {
+        addTagBadge(val);
+        tagBadgeInput.value = '';
+      }
+    });
+  }
+
+  const badgeWrap = document.getElementById('tag-badges-wrap');
+  if (badgeWrap && tagBadgeInput) {
+    badgeWrap.addEventListener('click', (e) => {
+      if (e.target === badgeWrap) tagBadgeInput.focus();
+    });
+  }
 };
 
 /** Boots the main popup UI once and optionally skips duplicate AI init after onboarding setup. */

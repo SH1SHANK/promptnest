@@ -70,13 +70,14 @@ const scrape = async (platform = null) => {
       }
 
       const text = await readNodeText(node);
+      const html = String(node.innerHTML || '').trim();
 
       if (!text) {
         continue;
       }
 
       const role = node.matches(sel.userMsg) ? 'user' : 'assistant';
-      messages.push({ role, text });
+      messages.push({ role, text, html });
     }
 
     if ((await isKnownPlatform(resolvedPlatform)) && messages.length === 0) {

@@ -229,6 +229,7 @@ const ensureMessageCheckbox = async (node, messageId) => {
 
   if (checkbox instanceof HTMLInputElement) {
     checkbox.checked = exportSelectionState.selectedIds.has(messageId);
+    control.classList.toggle('pn-checked', checkbox.checked);
 
     checkbox.addEventListener('change', (event) => {
       const target = event.currentTarget;
@@ -239,8 +240,10 @@ const ensureMessageCheckbox = async (node, messageId) => {
 
       if (target.checked) {
         exportSelectionState.selectedIds.add(messageId);
+        control.classList.add('pn-checked');
       } else {
         exportSelectionState.selectedIds.delete(messageId);
+        control.classList.remove('pn-checked');
       }
 
       void updateSelectionFab();
@@ -629,6 +632,29 @@ const onRuntimeMessage = (msg, _sender, sendResponse) => {
         return;
       }
 
+      if (msg?.type === 'GET_CONVERSATION_SNIPPET') {
+        try {
+          const selectors = exportSelectionState.selectors || await window.Platform.getSelectors();
+          if (!selectors) {
+            respond({ text: null });
+            return;
+          }
+          const userNodes = Array.from(document.querySelectorAll(selectors.userMsg));
+          const botNodes = Array.from(document.querySelectorAll(selectors.botMsg));
+          const allNodes = [...new Set([...userNodes, ...botNodes])];
+          const text = allNodes
+            .slice(-4)
+            .map(el => (el.innerText || '').trim())
+            .filter(Boolean)
+            .join(' ')
+            .slice(0, 600);
+          respond({ text: text || null });
+        } catch (_) {
+          respond({ text: null });
+        }
+        return;
+      }
+
       respond({ ok: false, error: `Unknown action: ${String(msg?.action || 'undefined')}` });
     } catch (error) {
       respond({ ok: false, error: error.message || 'Unexpected content script failure.' });
@@ -711,7 +737,8 @@ const init = async () => {
   window.__PN.SidePanelExport = {
     openPanelOnly: openSidePanelOnly,
     openWithSelection: openSidePanelWithSelection,
-    openWithAllMessages: openSidePanelWithAllMessages
+    openWithAllMessages: openSidePanelWithAllMessages,
+    getSelectedMessages: buildSelectedMessages
   };
 
   chrome.runtime.onMessage.addListener(onRuntimeMessage);

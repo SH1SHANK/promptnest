@@ -144,6 +144,15 @@
   justify-content: center;
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform: scale(0.95);
+}
+
+.pn-selectable-message--relative:hover .pn-inline-select,
+.pn-inline-select.pn-checked {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .pn-inline-check {

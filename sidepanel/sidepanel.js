@@ -86,7 +86,10 @@ const state = {
     includePlatform: DEFAULT_SETTINGS.defaultIncludePlatform
   },
   turndown: null,
-  onboardingIndex: 0
+  onboardingIndex: 0,
+  aiReady: false,
+  semanticResults: null,
+  _searchDebounce: null,
 };
 
 /** Returns a required DOM node by id. */
@@ -267,7 +270,9 @@ const onOnboardingNext = async () => {
     userContext: context
   });
 
-  const aiInitialized = state.settings.enableAI ? await window.AI.initModel() : false;
+  // Legacy model-free heuristics (always available)
+  const aiInitialized = state.settings.enableAI;
+
   await completeOnboarding();
   return aiInitialized;
 };
@@ -341,7 +346,8 @@ const refreshHeaderControls = async () => {
   }
 
   if (searchWrap) {
-    searchWrap.classList.toggle('hidden', !isPromptTab);
+    const isPromptOrTagsTab = isPromptTab || state.activeTab === 'tags';
+    searchWrap.classList.toggle('hidden', !isPromptOrTagsTab);
   }
 };
 
@@ -370,8 +376,10 @@ const switchTab = async (tabName) => {
   const settingsBtn = document.getElementById('settings-btn');
   const refreshBtn = document.getElementById('refresh-btn');
 
-  if (tabBar) tabBar.style.display = isStandaloneView ? 'none' : 'flex';
-  if (searchWrap) searchWrap.style.display = isStandaloneView ? 'none' : 'block';
+  if (tabBar) tabBar.classList.toggle('hidden', isStandaloneView);
+  if (searchWrap) {
+    searchWrap.classList.toggle('hidden', isStandaloneView);
+  }
   
   if (backBtn) backBtn.classList.toggle('hidden', !isStandaloneView);
   if (addPromptBtn) addPromptBtn.classList.toggle('hidden', isStandaloneView);
@@ -404,8 +412,11 @@ const setAiDisabledBadge = async () => {
   }
 
   if (progressText) {
-    progressText.textContent = 'Enable Smart Features in Settings to use ranking, tag suggestions, and duplicate checks.';
+    progressText.textContent = 'Disabled';
   }
+
+  const modelPill = document.getElementById('pn-model-pill');
+  if (modelPill) modelPill.classList.remove('pn-sv-model-pill--ready');
 };
 
 /** Loads and merges side panel settings from local storage. */
@@ -635,13 +646,88 @@ const applyExportDefaultsFromSettings = async () => {
 const syncAiState = async () => {
   if (!state.settings.enableAI) {
     await setAiDisabledBadge();
+    state.aiReady = false;
     return false;
   }
 
-  const ready = await window.AI.initModel();
+  // Show AI bar loading state
+  const aiBar = document.getElementById('pn-ai-bar');
+  if (aiBar) {
+    aiBar.classList.remove('pn-ai-bar--hidden', 'pn-ai-bar--ready');
+    aiBar.classList.add('pn-ai-bar--loading');
+  }
 
-  if (!ready) {
-    await showToast('Smart features unavailable. You can continue with basic keyword behavior.');
+  // Listen for AI status updates from service worker
+  const statusHandler = (msg) => {
+    if (msg?.type === 'AI_DOWNLOAD_PROGRESS') {
+      const progressText = document.getElementById('ai-progress-text');
+      if (progressText) progressText.textContent = `Downloading... ${msg.progress}%`;
+      return;
+    }
+
+    if (msg?.type === 'AI_STATUS') {
+      // If it's already loading, show initializing
+      if (msg.status === 'loading') {
+        const progressText = document.getElementById('ai-progress-text');
+        if (progressText && !progressText.textContent.startsWith('Downloading')) {
+          progressText.textContent = 'Initializing...';
+        }
+      }
+
+      if (msg.status === 'ready') {
+        state.aiReady = true;
+        if (aiBar) {
+          aiBar.classList.remove('pn-ai-bar--loading');
+          aiBar.classList.add('pn-ai-bar--ready');
+        }
+        const searchInput = document.getElementById('prompt-search');
+        if (searchInput) searchInput.placeholder = 'Search by meaning...';
+
+        const progressText = document.getElementById('ai-progress-text');
+        if (progressText) progressText.textContent = '✦ Ready';
+
+        const modelPill = document.getElementById('pn-model-pill');
+        if (modelPill) modelPill.classList.add('pn-sv-model-pill--ready');
+
+        const spark = document.getElementById('pn-search-spark');
+        if (spark) spark.classList.remove('pn-hidden');
+
+        const statusNode = document.getElementById('ai-status');
+        if (statusNode) {
+          statusNode.classList.remove('pn-ai-status--loading', 'pn-ai-status--unavailable');
+          statusNode.classList.add('pn-ai-status--ready');
+          statusNode.innerHTML = '<span class="pn-ai-dot"></span><span class="pn-ai-status__text">Smart</span>';
+        }
+
+        // Trigger smart suggestions
+        void loadSmartSuggestions();
+      }
+      if (msg.status === 'failed') {
+        state.aiReady = false;
+        if (aiBar) {
+          aiBar.classList.remove('pn-ai-bar--loading');
+          aiBar.classList.add('pn-ai-bar--hidden');
+        }
+        const progressText = document.getElementById('ai-progress-text');
+        if (progressText) {
+          progressText.textContent = msg.error ? `Unavailable - ${msg.error}` : 'Unavailable — using keywords';
+        }
+
+        const modelPill = document.getElementById('pn-model-pill');
+        if (modelPill) modelPill.classList.remove('pn-sv-model-pill--ready');
+      }
+    }
+  };
+
+  chrome.runtime.onMessage.addListener(statusHandler);
+
+  // Request model init
+  const result = await window.AIBridge.init();
+  const ready = result?.status === 'ready';
+
+  if (ready) {
+    state.aiReady = true;
+    statusHandler({ type: 'AI_STATUS', status: 'ready' });
   }
 
   return ready;
@@ -674,14 +760,49 @@ const filterPrompts = async (filter, prompts) => {
   const normalized = String(filter || '').trim();
 
   if (!normalized) {
+    state.semanticResults = null;
     return prompts;
   }
 
-  if (state.settings.enableAI && state.settings.semanticSearch) {
-    return window.AI.semanticSearch(normalized, prompts);
+  // Always start with keyword results for instant feedback
+  const keywordResults = await sidepanelKeywordFilter(normalized, prompts);
+
+  // If AI is ready and semantic search is enabled, do a semantic re-rank
+  if (state.aiReady && state.settings.enableAI && state.settings.semanticSearch) {
+    try {
+      const response = await window.AIBridge.search(normalized);
+      if (response?.results) {
+        state.semanticResults = new Map(response.results.map(r => [r.id, r]));
+
+        // Merge: keyword results first (re-ordered by semantic), then semantic-only
+        const promptMap = new Map(prompts.map(p => [p.id, p]));
+        const seen = new Set();
+        const merged = [];
+
+        // Ordered by semantic score
+        for (const r of response.results) {
+          if (promptMap.has(r.id)) {
+            merged.push(promptMap.get(r.id));
+            seen.add(r.id);
+          }
+        }
+
+        // Add keyword-only hits that semantic missed
+        for (const p of keywordResults) {
+          if (!seen.has(p.id)) {
+            merged.push(p);
+          }
+        }
+
+        return merged;
+      }
+    } catch (_) {
+      // Fall through to keyword results
+    }
   }
 
-  return sidepanelKeywordFilter(normalized, prompts);
+  state.semanticResults = null;
+  return keywordResults;
 };
 
 /** Renders one prompt card with inject and delete actions. */
@@ -751,6 +872,11 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
         return;
       }
 
+      // Remove from AI embedding cache
+      if (state.aiReady) {
+        void window.AIBridge.cacheRemove(prompt.id);
+      }
+
       await renderPrompts(activeFilter);
       await renderTags();
     })();
@@ -761,6 +887,15 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
     relevance.className = 'pn-relevance';
     relevance.textContent = `Relevance: ${(prompt._semanticScore * 100).toFixed(0)}%`;
     card.appendChild(relevance);
+  }
+
+  // Semantic spark indicator
+  if (state.semanticResults?.get(prompt.id)?.semanticOnly) {
+    const spark = document.createElement('span');
+    spark.className = 'pn-spark';
+    spark.title = 'Found by meaning';
+    spark.textContent = '✦';
+    title.appendChild(spark);
   }
 
   actions.appendChild(injectButton);
@@ -981,7 +1116,9 @@ const deleteTag = async (tagToDelete) => {
 
 /** Renders tag management rows with rename, delete, and filter actions. */
 const renderTags = async () => {
-  const container = await byId('tag-list');
+  const container = document.getElementById('tag-list');
+  const filterBar = document.getElementById('pn-tag-filter-bar');
+  const emptyState = document.getElementById('pn-tags-empty');
 
   if (!container) {
     return;
@@ -990,101 +1127,124 @@ const renderTags = async () => {
   const prompts = await window.Store.getPrompts();
   const tags = await collectTags(prompts);
 
-  container.innerHTML = '';
+  // Clear existing rows (keep empty state node)
+  container.querySelectorAll('.pn-tag-row').forEach((r) => r.remove());
+
+  // Clear filter bar
+  if (filterBar) {
+    filterBar.innerHTML = '';
+  }
 
   if (!tags.length) {
-    container.appendChild(await createEmptyState('No tags yet. Add tags when saving prompts, then manage them here.'));
+    if (emptyState) emptyState.classList.remove('pn-hidden');
     return;
   }
 
+  if (emptyState) emptyState.classList.add('pn-hidden');
+
+  // Render filter chips
+  if (filterBar) {
+    for (const item of tags) {
+      const chip = document.createElement('button');
+      chip.className = 'pn-tag-filter-chip';
+      chip.type = 'button';
+      chip.dataset.tag = item.tag;
+      chip.innerHTML = `${item.tag} <span class="pn-tag-count">${item.count}</span>`;
+      chip.addEventListener('click', () => {
+        const isActive = chip.classList.contains('active');
+        filterBar.querySelectorAll('.pn-tag-filter-chip').forEach((c) =>
+          c.classList.remove('active')
+        );
+        if (!isActive) {
+          chip.classList.add('active');
+          void (async () => {
+            const search = document.getElementById('prompt-search');
+            if (search) search.value = item.tag;
+            await switchTab('prompts');
+            await renderPrompts(item.tag);
+          })();
+        } else {
+          void (async () => {
+            const search = document.getElementById('prompt-search');
+            if (search) search.value = '';
+            await switchTab('prompts');
+            await renderPrompts('');
+          })();
+        }
+      });
+      filterBar.appendChild(chip);
+    }
+  }
+
+  // Render tag management rows
   for (const item of tags) {
-    const card = document.createElement('article');
-    card.className = 'pn-history-card';
+    const row = document.createElement('div');
+    row.className = 'pn-tag-row';
 
-    const title = document.createElement('h3');
-    title.className = 'pn-card-title';
-    title.textContent = item.tag;
+    const left = document.createElement('div');
+    left.className = 'pn-tag-row-left';
 
-    const meta = document.createElement('p');
-    meta.className = 'pn-card-meta';
-    meta.textContent = `Used in ${item.count} prompt${item.count === 1 ? '' : 's'}`;
+    const dot = document.createElement('span');
+    dot.className = 'pn-tag-dot';
+
+    const name = document.createElement('span');
+    name.className = 'pn-tag-name';
+    name.textContent = item.tag;
+
+    const count = document.createElement('span');
+    count.className = 'pn-tag-count-badge';
+    count.textContent = `${item.count} prompt${item.count === 1 ? '' : 's'}`;
+
+    left.appendChild(dot);
+    left.appendChild(name);
+    left.appendChild(count);
 
     const actions = document.createElement('div');
-    actions.className = 'pn-card-actions';
+    actions.className = 'pn-tag-row-actions';
 
-    const filterButton = document.createElement('button');
-    filterButton.className = 'pn-btn pn-btn--ghost';
-    filterButton.type = 'button';
-    filterButton.textContent = 'Filter';
-
-    filterButton.addEventListener('click', () => {
-      void (async () => {
-        const search = await byId('prompt-search');
-
-        if (search) {
-          search.value = item.tag;
-        }
-
-        await switchTab('prompts');
-        await renderPrompts(item.tag);
-      })();
-    });
-
-    const renameButton = document.createElement('button');
-    renameButton.className = 'pn-btn pn-btn--ghost';
-    renameButton.type = 'button';
-    renameButton.textContent = 'Rename';
-
-    renameButton.addEventListener('click', () => {
+    const renameBtn = document.createElement('button');
+    renameBtn.className = 'pn-tag-action-btn rename';
+    renameBtn.type = 'button';
+    renameBtn.title = 'Rename';
+    renameBtn.textContent = '\u270e';
+    renameBtn.addEventListener('click', () => {
       void (async () => {
         const nextValue = window.prompt(`Rename tag "${item.tag}" to:`, item.tag);
-
-        if (nextValue === null) {
-          return;
-        }
-
+        if (nextValue === null) return;
         const normalized = String(nextValue || '').trim();
-
         if (!normalized) {
           await showToast('Tag name cannot be empty.');
           return;
         }
-
         await renameTag(item.tag, normalized);
         await renderTags();
-        await renderPrompts(String((await byId('prompt-search'))?.value || ''));
+        await renderPrompts(String(document.getElementById('prompt-search')?.value || ''));
         await showToast('Tag renamed.');
       })();
     });
 
-    const deleteButton = document.createElement('button');
-    deleteButton.className = 'pn-btn pn-btn-danger';
-    deleteButton.type = 'button';
-    deleteButton.textContent = 'Delete';
-
-    deleteButton.addEventListener('click', () => {
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'pn-tag-action-btn delete';
+    deleteBtn.type = 'button';
+    deleteBtn.title = 'Remove from all prompts';
+    deleteBtn.textContent = '\u2715';
+    deleteBtn.addEventListener('click', () => {
       void (async () => {
         const confirmed = window.confirm(`Delete tag "${item.tag}" from all prompts?`);
-
-        if (!confirmed) {
-          return;
-        }
-
+        if (!confirmed) return;
         await deleteTag(item.tag);
         await renderTags();
-        await renderPrompts(String((await byId('prompt-search'))?.value || ''));
+        await renderPrompts(String(document.getElementById('prompt-search')?.value || ''));
         await showToast('Tag deleted from prompts.');
       })();
     });
 
-    actions.appendChild(filterButton);
-    actions.appendChild(renameButton);
-    actions.appendChild(deleteButton);
+    actions.appendChild(renameBtn);
+    actions.appendChild(deleteBtn);
 
-    card.appendChild(title);
-    card.appendChild(meta);
-    card.appendChild(actions);
-    container.appendChild(card);
+    row.appendChild(left);
+    row.appendChild(actions);
+    container.appendChild(row);
   }
 };
 
@@ -1098,17 +1258,23 @@ const openModal = async () => {
 
   state.pendingDuplicatePayload = null;
 
-  if (title) {
-    title.value = '';
-  }
+  if (title) title.value = '';
+  if (text) text.value = '';
+  if (tags) tags.value = '';
 
-  if (text) {
-    text.value = '';
+  // Clear badge tags
+  const badgeWrap = document.getElementById('tag-badges-wrap');
+  if (badgeWrap) {
+    badgeWrap.querySelectorAll('.pn-tag-badge').forEach(b => b.remove());
   }
+  const tagInput = document.getElementById('prompt-tags-input');
+  if (tagInput) tagInput.value = '';
 
-  if (tags) {
-    tags.value = '';
-  }
+  // Clear AI suggestion containers
+  const suggestionsEl = document.getElementById('pn-tag-suggestions');
+  if (suggestionsEl) suggestionsEl.innerHTML = '';
+  const dupWarnEl = document.getElementById('pn-duplicate-warning');
+  if (dupWarnEl) { dupWarnEl.innerHTML = ''; dupWarnEl.classList.add('pn-hidden'); }
 
   confirmDuplicate?.classList.add('hidden');
   modal?.classList.remove('pn-hidden');
@@ -1126,36 +1292,58 @@ const closeModal = async () => {
 
 /** Auto-fills tags from AI suggestions when enabled and tag field is empty. */
 const prefillSuggestedTags = async () => {
-  if (!state.settings.enableAI || !state.settings.autoSuggestTags) {
+  if (!state.settings.enableAI || !state.settings.autoSuggestTags || !state.aiReady) {
     return;
   }
 
   const textInput = await byId('prompt-text');
-  const tagsInput = await byId('prompt-tags');
+  const tagsHidden = await byId('prompt-tags');
+  const suggestionsEl = document.getElementById('pn-tag-suggestions');
 
-  if (!textInput || !tagsInput || String(tagsInput.value || '').trim()) {
-    return;
-  }
+  if (!textInput || !tagsHidden) return;
+  if (String(tagsHidden.value || '').trim()) return;
 
-  const suggestions = await window.AI.suggestTags(String(textInput.value || '').trim());
+  const promptText = String(textInput.value || '').trim();
+  if (!promptText) return;
 
-  if (suggestions.length) {
-    tagsInput.value = suggestions.join(', ');
-  }
+  try {
+    const response = await window.AIBridge.suggestTags(promptText);
+    const tags = response?.tags ?? [];
+    if (!tags.length || !suggestionsEl) return;
+
+    suggestionsEl.innerHTML = '<span class="pn-tag-suggestions__label">Suggested</span>';
+    for (const tag of tags) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'pn-tag-chip--suggestion';
+      chip.textContent = tag;
+      chip.addEventListener('click', () => {
+        addTagBadge(tag);
+        chip.remove();
+        if (!suggestionsEl.querySelector('.pn-tag-chip--suggestion')) {
+          suggestionsEl.innerHTML = '';
+        }
+      });
+      suggestionsEl.appendChild(chip);
+    }
+  } catch (_) {}
 };
 
 /** Persists one prompt and refreshes prompts/tags sections. */
 const persistPrompt = async (payload) => {
-  const embeddingVector = state.settings.enableAI ? await window.AI.embedText(payload.text) : null;
-
   const saved = await window.Store.savePrompt({
     ...payload,
-    embedding: embeddingVector ? Array.from(embeddingVector) : null
+    embedding: null
   });
 
   if (!saved) {
     await showToast('Failed to save prompt.');
     return false;
+  }
+
+  // Add to AI embedding cache
+  if (state.aiReady && saved.id) {
+    void window.AIBridge.cacheAdd(saved);
   }
 
   await closeModal();
@@ -1178,11 +1366,9 @@ const saveDuplicateAnyway = async () => {
 const savePromptFromModal = async () => {
   const titleInput = await byId('prompt-title');
   const textInput = await byId('prompt-text');
-  const tagsInput = await byId('prompt-tags');
+  const tagsHidden = await byId('prompt-tags');
 
-  if (!titleInput || !textInput || !tagsInput) {
-    return;
-  }
+  if (!titleInput || !textInput || !tagsHidden) return;
 
   const titleValue = String(titleInput.value || '').trim();
   const textValue = String(textInput.value || '').trim();
@@ -1192,25 +1378,35 @@ const savePromptFromModal = async () => {
     return;
   }
 
-  await prefillSuggestedTags();
-
   const payload = {
     title: titleValue,
     text: textValue,
-    tags: await parseTags(tagsInput.value || ''),
+    tags: await parseTags(tagsHidden.value || ''),
     category: null
   };
 
-  if (state.settings.enableAI && state.settings.duplicateCheck) {
-    const existingPrompts = await window.Store.getPrompts();
-    const duplicate = await window.AI.isDuplicate(textValue, existingPrompts);
-
-    if (duplicate.duplicate) {
-      state.pendingDuplicatePayload = payload;
-      (await byId('confirm-duplicate'))?.classList.remove('hidden');
-      await showToast(`Similar prompt exists: ${duplicate.match?.title || 'Untitled'}. Save anyway?`);
-      return;
-    }
+  // Duplicate check via AIBridge
+  if (state.aiReady && state.settings.enableAI && state.settings.duplicateCheck) {
+    try {
+      const response = await window.AIBridge.checkDuplicate(textValue);
+      if (response?.match) {
+        const dupWarn = document.getElementById('pn-duplicate-warning');
+        if (dupWarn) {
+          dupWarn.classList.remove('pn-hidden');
+          dupWarn.innerHTML = `
+            <strong>Looks similar to: "${response.match.prompt?.title || 'Untitled'}"</strong>
+            <div class="pn-duplicate-actions">
+              <button class="pn-btn-ignore" id="pn-dup-save-anyway" type="button">Save anyway</button>
+            </div>
+          `;
+          document.getElementById('pn-dup-save-anyway')?.addEventListener('click', () => {
+            dupWarn.classList.add('pn-hidden');
+            void persistPrompt(payload);
+          });
+          return;
+        }
+      }
+    } catch (_) {}
   }
 
   await persistPrompt(payload);
@@ -1236,10 +1432,12 @@ const normalizeExportPayload = async (rawPayload) => {
   };
 };
 
-/** Loads latest selected export payload from storage.session. */
+/** Loads latest selected export payload from local storage. */
 const loadExportPayload = async () => {
-  const snapshot = await chrome.storage.session.get([SIDEPANEL_SESSION_KEY]);
+  const snapshot = await chrome.storage.local.get([SIDEPANEL_SESSION_KEY]);
   state.exportPayload = await normalizeExportPayload(snapshot?.[SIDEPANEL_SESSION_KEY]);
+  // Clear it immediately so it doesn't accidentally trigger on next open
+  await chrome.storage.local.remove([SIDEPANEL_SESSION_KEY]);
 };
 
 /** Returns lazily initialized Turndown converter instance. */
@@ -1267,9 +1465,8 @@ const toMessageMarkdown = async (message, index) => {
   const service = await getTurndownService();
   const rawHtml = String(message?.html || '').trim();
   const safeHtml = await stripInlineStylesFromHtml(rawHtml);
-  const hasInlineStyleSignature = /(?:<style\b|style\s*=)/i.test(rawHtml) || /(?:<style\b|style\s*=)/i.test(safeHtml);
 
-  if (service && safeHtml && !hasInlineStyleSignature) {
+  if (service && safeHtml) {
     const converted = service.turndown(`<div>${safeHtml}</div>`).trim();
 
     if (converted) {
@@ -1307,14 +1504,27 @@ const buildMarkdown = async () => {
   return `${lines.join('\n')}\n\n---\n\n${sections.join('\n\n---\n\n')}`.trim();
 };
 
-/** Creates styled HTML snapshot for preview and PDF generation. */
-const buildPdfPreviewMarkup = async () => {
+/** Gets or initializes the Markdown parser for visual previews. */
+const getMarkdownParser = async () => {
+  if (state.markdownParser) return state.markdownParser;
+  if (!window.markdownit) return null;
+  state.markdownParser = window.markdownit({
+    html: false, // Disallow raw HTML in the preview to prevent XSS
+    breaks: true,
+    linkify: true
+  });
+  return state.markdownParser;
+};
+
+/** Creates styled HTML snapshot for preview rendering by rendering Markdown. */
+const buildVisualPreviewMarkup = async () => {
   const payload = state.exportPayload;
 
   if (!payload || !payload.messages.length) {
     return '<div class="pn-empty">No selected messages found. Select messages in chat and click Export Selected.</div>';
   }
 
+  const parser = await getMarkdownParser();
   const platformLine = state.exportPrefs.includePlatform
     ? `<p class="pn-export-meta-line">Platform: ${await escapeHtml(await getPlatformLabel(payload.platform))}</p>`
     : '';
@@ -1324,15 +1534,34 @@ const buildPdfPreviewMarkup = async () => {
     : '';
 
   const rows = [];
+  const service = await getTurndownService();
 
   for (let index = 0; index < payload.messages.length; index += 1) {
     const message = payload.messages[index];
     const roleLabel = await escapeHtml(message.role === 'user' ? 'You' : 'Assistant');
-    const messageText = (await escapeHtml(message.text)).replaceAll('\\n', '<br />');
+    
+    // First, safely convert the scraped content to Markdown
+    let mdText = message.text;
+    const rawHtml = String(message?.html || '').trim();
+    const safeHtml = await stripInlineStylesFromHtml(rawHtml);
+    
+    if (service && safeHtml) {
+      const converted = service.turndown(`<div>${safeHtml}</div>`).trim();
+      if (converted) mdText = converted;
+    }
+
+    // Now render the Markdown back to Safe HTML for the preview UI
+    let contentHtml = '';
+    if (parser) {
+      contentHtml = parser.render(mdText);
+    } else {
+      contentHtml = (await escapeHtml(mdText)).replaceAll('\\n', '<br />');
+    }
+
     rows.push(`
       <article class="pn-export-card">
         <h3>${index + 1}. ${roleLabel}</h3>
-        <p>${messageText}</p>
+        <div class="pn-export-card-content pn-markdown-body">${contentHtml}</div>
       </article>
     `);
   }
@@ -1417,20 +1646,8 @@ const renderExportPreview = async () => {
     return;
   }
 
-  if (state.exportPrefs.format === 'pdf') {
-    preview.innerHTML = await buildPdfPreviewMarkup();
-    await renderExportMeta();
-    return;
-  }
-
-  const markdown = await buildMarkdown();
-  preview.innerHTML = '<pre class="pn-markdown-preview"></pre>';
-  const pre = preview.querySelector('pre');
-
-  if (pre) {
-    pre.textContent = markdown;
-  }
-
+  // Always display rendered semantic HTML for the visual preview pane
+  preview.innerHTML = await buildVisualPreviewMarkup();
   await renderExportMeta();
 };
 
@@ -1526,6 +1743,15 @@ const saveSettingsFromPanel = async () => {
     await setAiDisabledBadge();
   }
 
+  // Save Gemini API key separately
+  const geminiKeyInput = document.getElementById('setting-gemini-key');
+  if (geminiKeyInput) {
+    const keyVal = String(geminiKeyInput.value || '').trim();
+    if (keyVal) {
+      await chrome.storage.local.set({ pnGeminiKey: keyVal });
+    }
+  }
+
   await setSettingsStatus('Settings saved.', 'ok');
   await syncSettingsSaveState();
 };
@@ -1617,6 +1843,83 @@ const bindEvents = async () => {
     void prefillSuggestedTags();
   });
 
+  // Badge-style tag input
+  const tagBadgeInput = document.getElementById('prompt-tags-input');
+  if (tagBadgeInput) {
+    tagBadgeInput.addEventListener('keydown', (e) => {
+      const val = String(tagBadgeInput.value || '').trim();
+      if ((e.key === ' ' || e.key === 'Enter' || e.key === ',') && val) {
+        e.preventDefault();
+        addTagBadge(val);
+        tagBadgeInput.value = '';
+      }
+      if (e.key === 'Backspace' && !tagBadgeInput.value) {
+        const badges = document.querySelectorAll('#tag-badges-wrap .pn-tag-badge');
+        const last = badges[badges.length - 1];
+        if (last) last.remove();
+        syncBadgesToHidden();
+      }
+    });
+
+    tagBadgeInput.addEventListener('blur', () => {
+      const val = String(tagBadgeInput.value || '').trim();
+      if (val) {
+        addTagBadge(val);
+        tagBadgeInput.value = '';
+      }
+    });
+  }
+
+  // Focus tag input when clicking badge container
+  const badgeWrap = document.getElementById('tag-badges-wrap');
+  if (badgeWrap && tagBadgeInput) {
+    badgeWrap.addEventListener('click', (e) => {
+      if (e.target === badgeWrap) tagBadgeInput.focus();
+    });
+  }
+
+  // Smart strip close button
+  document.getElementById('pn-smart-close')?.addEventListener('click', () => {
+    document.getElementById('pn-smart-strip')?.classList.add('pn-hidden');
+  });
+
+  // API key visibility toggle
+  document.getElementById('toggle-key-vis')?.addEventListener('click', () => {
+    const keyInput = document.getElementById('setting-gemini-key');
+    if (keyInput) {
+      keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
+    }
+  });
+
+  // Check API connection button
+  document.getElementById('check-api-key')?.addEventListener('click', async () => {
+    const btn = document.getElementById('check-api-key');
+    const keyInput = document.getElementById('setting-gemini-key');
+    const key = keyInput?.value?.trim();
+    if (!key) {
+      btn.textContent = 'No key';
+      btn.classList.add('pn-status-error');
+      setTimeout(() => { btn.textContent = 'Check'; btn.classList.remove('pn-status-error', 'pn-status-ok'); }, 2000);
+      return;
+    }
+    btn.textContent = '...';
+    btn.classList.remove('pn-status-error', 'pn-status-ok');
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+      if (res.ok) {
+        btn.textContent = '✓ Valid';
+        btn.classList.add('pn-status-ok');
+      } else {
+        btn.textContent = '✗ Invalid';
+        btn.classList.add('pn-status-error');
+      }
+    } catch {
+      btn.textContent = '✗ Error';
+      btn.classList.add('pn-status-error');
+    }
+    setTimeout(() => { btn.textContent = 'Check'; btn.classList.remove('pn-status-error', 'pn-status-ok'); }, 3000);
+  });
+
   (await byId('prompt-search'))?.addEventListener('input', (event) => {
     const target = event.target;
     void renderPrompts(String(target?.value || ''));
@@ -1663,7 +1966,8 @@ const bindEvents = async () => {
     'setting-export-format',
     'setting-export-date',
     'setting-export-platform',
-    'setting-user-context'
+    'setting-user-context',
+    'setting-gemini-key'
   ];
 
   for (const controlId of settingsControlIds) {
@@ -1689,6 +1993,102 @@ const bindEvents = async () => {
   });
 };
 
+/** Adds a single tag badge to the badge container and syncs to hidden input. */
+const addTagBadge = (tag) => {
+  const normalized = String(tag || '').trim().toLowerCase();
+  if (!normalized) return;
+
+  const wrap = document.getElementById('tag-badges-wrap');
+  const input = document.getElementById('prompt-tags-input');
+  if (!wrap) return;
+
+  // Prevent duplicate badges
+  const existing = Array.from(wrap.querySelectorAll('.pn-tag-badge'))
+    .map(b => b.dataset.tag);
+  if (existing.includes(normalized)) return;
+
+  const badge = document.createElement('span');
+  badge.className = 'pn-tag-badge';
+  badge.dataset.tag = normalized;
+  badge.innerHTML = `${normalized}<button type="button" class="pn-tag-badge__remove">×</button>`;
+
+  badge.querySelector('.pn-tag-badge__remove')?.addEventListener('click', () => {
+    badge.remove();
+    syncBadgesToHidden();
+  });
+
+  if (input) {
+    wrap.insertBefore(badge, input);
+  } else {
+    wrap.appendChild(badge);
+  }
+
+  syncBadgesToHidden();
+};
+
+/** Syncs badge tags to the hidden prompt-tags input. */
+const syncBadgesToHidden = () => {
+  const wrap = document.getElementById('tag-badges-wrap');
+  const hidden = document.getElementById('prompt-tags');
+  if (!wrap || !hidden) return;
+
+  const tags = Array.from(wrap.querySelectorAll('.pn-tag-badge'))
+    .map(b => b.dataset.tag)
+    .filter(Boolean);
+  hidden.value = tags.join(', ');
+};
+
+/** Loads smart suggestions by fetching conversation context from active tab. */
+const loadSmartSuggestions = async () => {
+  if (!state.aiReady) return;
+
+  try {
+    // Get active tab
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) return;
+
+    // Try to get conversation snippet from content script
+    let snippet = null;
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_CONVERSATION_SNIPPET' });
+      snippet = response?.text;
+    } catch (_) { return; }
+
+    if (!snippet || snippet.length < 30) return;
+
+    const result = await window.AIBridge.getSmartSuggestions(snippet);
+    if (!result?.ids?.length) return;
+
+    const prompts = await window.Store.getPrompts();
+    const promptMap = new Map(prompts.map(p => [p.id, p]));
+
+    const strip = document.getElementById('pn-smart-strip');
+    const chips = document.getElementById('pn-smart-chips');
+    if (!strip || !chips) return;
+
+    chips.innerHTML = '';
+
+    for (const id of result.ids) {
+      const prompt = promptMap.get(id);
+      if (!prompt) continue;
+
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'pn-smart-chip';
+      chip.textContent = prompt.title;
+      chip.title = prompt.text.slice(0, 100);
+      chip.addEventListener('click', () => {
+        const search = document.getElementById('prompt-search');
+        if (search) search.value = prompt.title;
+        void renderPrompts(prompt.title);
+      });
+      chips.appendChild(chip);
+    }
+
+    strip.classList.remove('pn-hidden');
+  } catch (_) {}
+};
+
 /** Initializes full side panel workspace and renders all sections. */
 const init = async () => {
   await bindEvents();
@@ -1698,6 +2098,13 @@ const init = async () => {
   await applyExportDefaultsFromSettings();
   await loadExportPayload();
   await bindSessionPayloadUpdates();
+
+  // Load Gemini key into settings UI
+  try {
+    const { pnGeminiKey } = await chrome.storage.local.get('pnGeminiKey');
+    const keyInput = document.getElementById('setting-gemini-key');
+    if (keyInput && pnGeminiKey) keyInput.value = pnGeminiKey;
+  } catch (_) {}
 
   const hasSelectionPayload = Boolean(state.exportPayload?.messages?.length);
   await switchTab(hasSelectionPayload ? 'export' : 'prompts');
@@ -1712,9 +2119,6 @@ const init = async () => {
     if (!onboardingInitializedAi) {
       await syncAiState();
     }
-
-    const prompts = await window.Store.getPrompts();
-    void window.AI.rehydratePromptEmbeddings(prompts);
   } else {
     await setAiDisabledBadge();
   }
@@ -1725,6 +2129,28 @@ const init = async () => {
     await setExportStatus('Select messages in chat, then click Export Selected.', false);
   }
 };
+
+// Register export navigation listener IMMEDIATELY so it's live when background sends showExport
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg?.action !== 'showExport') return;
+
+  void (async () => {
+    try {
+      await loadExportPayload();
+      await switchTab('export');
+      await renderExportPreview();
+      await renderExportMeta();
+
+      if (state.exportPayload?.messages?.length) {
+        await setExportStatus('Selection loaded.');
+      }
+    } catch (err) {
+      console.warn('[PromptNest] showExport handler error:', err);
+    }
+  })();
+
+  return true;
+});
 
 document.addEventListener('DOMContentLoaded', () => {
   void init();

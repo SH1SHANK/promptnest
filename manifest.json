@@ -15,7 +15,8 @@
     "default_path": "sidepanel/sidepanel.html"
   },
   "background": {
-    "service_worker": "background/service_worker.js"
+    "service_worker": "background/service_worker.js",
+    "type": "module"
   },
   "permissions": [
     "storage",
@@ -32,7 +33,7 @@
     "https://copilot.microsoft.com/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self'; font-src 'self' data:"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; style-src 'self'; font-src 'self' data:"
   },
   "content_scripts": [
     {
@@ -65,7 +66,9 @@
       "resources": [
         "content/fab.css",
         "content/toolbar.css",
-        "libs/jspdf.min.js"
+        "libs/jspdf.min.js",
+        "libs/transformers.min.js",
+        "models/*"
       ],
       "matches": [
         "https://chatgpt.com/*",
