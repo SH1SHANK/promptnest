@@ -21,6 +21,19 @@ const AI = {
   embeddingCache: {},      // promptId → Float32Array
 };
 
+const BRAND_KEYS = {
+  geminiKey: 'promptiumGeminiKey',
+  sidePanelPayload: 'promptiumSidePanelPayload',
+  improvePayload: 'promptiumImprovePayload'
+};
+
+/** Returns the configured Promptium Gemini API key. */
+const getGeminiApiKey = async () => {
+  const snapshot = await chrome.storage.local.get([BRAND_KEYS.geminiKey]);
+  const primary = String(snapshot?.[BRAND_KEYS.geminiKey] || '').trim();
+  return primary;
+};
+
 // ─── AI Bootstrap ────────────────────────────────────────────────────────────
 
 async function loadModel() {
@@ -56,7 +69,7 @@ async function loadModel() {
   } catch (err) {
     AI.status = 'failed';
     broadcast({ type: 'AI_STATUS', status: 'failed', error: err.message });
-    console.warn('[PromptNest AI] Model failed to load:', err.message);
+    console.warn('[Promptium AI] Model failed to load:', err.message);
   }
 }
 
@@ -246,8 +259,8 @@ async function getSmartSuggestions(conversationText) {
   if (!conversationText || conversationText.length < 30) return null;
 
   try {
-    const { pnGeminiKey } = await chrome.storage.local.get('pnGeminiKey');
-    if (!pnGeminiKey) return null;
+    const promptiumGeminiKey = await getGeminiApiKey();
+    if (!promptiumGeminiKey) return null;
 
     const { prompts = [] } = await chrome.storage.local.get('prompts');
     if (!prompts.length) return null;
@@ -262,7 +275,7 @@ async function getSmartSuggestions(conversationText) {
     const userMessage = `Conversation:\n${conversationText.slice(0, 600)}\n\nSaved prompts:\n${promptList}`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${pnGeminiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${promptiumGeminiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -303,18 +316,18 @@ async function getSmartSuggestions(conversationText) {
 // ─── AI Feature: AI Prompt Improvement (Gemini Flash) ─────────────────────────
 
 async function improvePromptViaGemini(text, tags = [], style = 'general') {
-  console.log('[PromptNest] improvePromptViaGemini called with:', { text, tags, style });
+  console.log('[Promptium] improvePromptViaGemini called with:', { text, tags, style });
   
   if (!text || text.trim().length === 0) {
-    console.warn('[PromptNest] Empty text provided to improvePromptViaGemini');
-    return null;
+    console.warn('[Promptium] Empty text provided to improvePromptViaGemini');
+    return { error: 'Empty prompt text provided.' };
   }
 
   try {
-    const { pnGeminiKey } = await chrome.storage.local.get('pnGeminiKey');
-    if (!pnGeminiKey) {
-      console.warn('[PromptNest] No Gemini API key found in storage!');
-      return null;
+    const promptiumGeminiKey = await getGeminiApiKey();
+    if (!promptiumGeminiKey) {
+      console.warn('[Promptium] No Gemini API key found in storage!');
+      return { error: 'No Gemini API Key found in Extension Settings.' };
     }
 
     let styleInstruction = 'Make it clear, concise, and highly effective for an AI.';
@@ -333,10 +346,10 @@ ${styleInstruction}
 ${tagContext}
 ONLY return the improved prompt text. Do not add quotes, do not explain your changes, do not write "Here is the improved prompt:". Just the raw, ready-to-use prompt text.`;
 
-    console.log('[PromptNest] Fetching from Gemini API...');
+    console.log('[Promptium] Fetching from Gemini API...');
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${pnGeminiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${promptiumGeminiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -354,18 +367,75 @@ ONLY return the improved prompt text. Do not add quotes, do not explain your cha
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[PromptNest] Gemini API error:', response.status, errorText);
-      return null;
+      console.error('[Promptium] Gemini API error:', response.status, errorText);
+      return { error: `Gemini API Error (${response.status}): ${errorText.substring(0, 100)}` };
     }
 
     const data = await response.json();
     const textResult = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     
-    console.log('[PromptNest] Successfully grabbed Gemini response');
-    return textResult.trim() || null;
+    console.log('[Promptium] Successfully grabbed Gemini response');
+    return { text: textResult.trim() };
   } catch (err) {
-    console.error('[PromptNest] Failed to improve prompt via Gemini:', err);
-    return null;
+    console.error('[Promptium] Failed to improve prompt via Gemini:', err);
+    return { error: err.message || 'Failed to improve prompt via Gemini.' };
+  }
+}
+
+async function generatePromptTitleViaGemini(text) {
+  const source = String(text || '').trim();
+  if (!source) {
+    return { error: 'Empty text provided.', title: '' };
+  }
+
+  try {
+    const promptiumGeminiKey = await getGeminiApiKey();
+    if (!promptiumGeminiKey) {
+      return { error: 'No Gemini API Key found in Extension Settings.', title: '' };
+    }
+
+    const instruction = `Create one concise title (max 8 words) for this prompt.
+Return ONLY the title text.
+No quotes, no numbering, no extra text.`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${promptiumGeminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            { role: 'user', parts: [{ text: `${instruction}\n\nPrompt:\n${source.slice(0, 2500)}` }] }
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 40,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { error: `Gemini API Error (${response.status}): ${errorText.substring(0, 100)}`, title: '' };
+    }
+
+    const data = await response.json();
+    const textResult = String(data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+    const title = textResult
+      .split('\n')[0]
+      .replace(/^["'`]+|["'`]+$/g, '')
+      .replace(/^\d+[\).\s-]+/, '')
+      .trim()
+      .slice(0, 80);
+
+    if (!title) {
+      return { error: 'No title generated.', title: '' };
+    }
+
+    return { title };
+  } catch (err) {
+    return { error: err?.message || 'Failed to generate title.', title: '' };
   }
 }
 
@@ -406,7 +476,11 @@ const handleAIMessage = async (message, sendResponse) => {
         return true;
 
       case 'AI_IMPROVE_PROMPT':
-        improvePromptViaGemini(message.text, message.tags, message.style).then(text => sendResponse({ text }));
+        improvePromptViaGemini(message.text, message.tags, message.style).then(result => sendResponse(result));
+        return true;
+
+      case 'AI_GENERATE_PROMPT_TITLE':
+        generatePromptTitleViaGemini(message.text).then(result => sendResponse(result));
         return true;
 
       case 'AI_STATUS_CHECK':
@@ -426,7 +500,7 @@ const handleAIMessage = async (message, sendResponse) => {
 loadModel();
 
 const SIDE_PANEL_PATH = 'sidepanel/sidepanel.html';
-const SIDEPANEL_SESSION_KEY = 'pnSidePanelPayload';
+const SIDEPANEL_SESSION_KEY = BRAND_KEYS.sidePanelPayload;
 const ALLOWED_LLM_HOSTS = new Set([
   'chatgpt.com',
   'claude.ai',
@@ -458,7 +532,7 @@ const initializeStorageKeys = async () => {
 chrome.action.onClicked.addListener((tab) => {
   if (tab && tab.windowId) {
     chrome.sidePanel.open({ windowId: tab.windowId }).catch((error) => {
-      console.error('[PromptNest][ServiceWorker] Failed to open side panel on action click.', error);
+      console.error('[Promptium][ServiceWorker] Failed to open side panel on action click.', error);
     });
   }
 });
@@ -468,7 +542,7 @@ const onInstalled = async () => {
   try {
     await initializeStorageKeys();
   } catch (error) {
-    console.error('[PromptNest][ServiceWorker] Initialization failed.', error);
+    console.error('[Promptium][ServiceWorker] Initialization failed.', error);
   }
 };
 

@@ -12,7 +12,7 @@
     {
       id: 'welcome',
       icon: '✦',
-      headline: 'Meet PromptNest',
+      headline: 'Meet Promptium',
       subheadline: 'Your AI workflow, elevated.',
       body: 'Save prompts. Export conversations. Improve with AI. Search by meaning. All private.',
       accent: '#8b7cf6'
@@ -58,13 +58,13 @@
       accent: '#34d399'
     },
     {
-      id: 'personalize',
+      id: 'launch',
       icon: '→',
-      headline: 'One last thing',
-      subheadline: 'Help us help you.',
-      body: null,
+      headline: 'Ready to start',
+      subheadline: 'Choose your next step.',
+      body: 'Open your library, jump into settings, or start directly.',
       accent: '#8b7cf6',
-      isPersonalize: true
+      isLaunch: true
     }
   ];
 
@@ -188,16 +188,12 @@
   /** Moves onboarding to the next card or completes personalization if on final card. */
   const nextCard = async () => {
     if (state.currentCard >= state.totalCards - 1) {
-      await completePersonalization();
+      await completeOnboarding();
       return;
     }
 
     state.currentCard += 1;
     await updateCardPositions(true);
-
-    if (state.currentCard === state.totalCards - 1) {
-      await focusPersonalizationInput();
-    }
   };
 
   /** Moves onboarding to the previous card when available. */
@@ -214,7 +210,6 @@
   const skipToPersonalize = async () => {
     state.currentCard = state.totalCards - 1;
     await updateCardPositions(true);
-    await focusPersonalizationInput();
   };
 
   /** Starts drag state for touch and mouse interactions over onboarding cards. */
@@ -341,7 +336,7 @@
     if (name && headerTitle) {
       headerTitle.textContent = `Hi, ${name} ✦`;
       await sleep(2000);
-      headerTitle.textContent = 'PromptNest';
+      headerTitle.textContent = 'Promptium';
     }
 
     if (typeof completionResolver === 'function') {
@@ -435,7 +430,7 @@
         <div class="pn-init-header">
           <div class="pn-init-icon">◈</div>
           <h2>Setting up smart features</h2>
-          <p>PromptNest runs model-free smart ranking and tagging.<br>No model download is required.</p>
+          <p>Promptium runs model-free smart ranking and tagging.<br>No model download is required.</p>
         </div>
 
         <div class="pn-progress-container">
@@ -514,10 +509,18 @@
       <h2 class="pn-card-headline">${card.headline}</h2>
       ${card.isPersonalize ? await renderPersonalizeCard() : `<p class="pn-card-body">${card.body}</p>`}
       ${card.id === 'welcome' ? '<p class="pn-swipe-hint">swipe or continue →</p>' : ''}
-      <div class="pn-onboard-actions">
-        <button class="pn-onboard-btn" type="button" data-action="continue">${card.isPersonalize ? 'Set Up AI →' : 'Continue'}</button>
-        ${card.isPersonalize ? '' : '<a class="pn-onboard-skip" href="#" data-action="skip">Skip</a>'}
-      </div>
+      ${
+        card.isLaunch
+          ? `<div class="pn-onboard-actions">
+              <button class="pn-onboard-btn" type="button" data-action="get-started">Get Started</button>
+              <button class="pn-onboard-btn pn-btn--ghost" type="button" data-action="open-library">Open Library</button>
+              <button class="pn-onboard-btn pn-btn--ghost" type="button" data-action="go-settings">Go to Settings</button>
+            </div>`
+          : `<div class="pn-onboard-actions">
+              <button class="pn-onboard-btn" type="button" data-action="continue">${card.isPersonalize ? 'Set Up AI →' : 'Continue'}</button>
+              ${card.isPersonalize ? '' : '<a class="pn-onboard-skip" href="#" data-action="skip">Skip</a>'}
+            </div>`
+      }
     `;
 
     return node;
@@ -536,6 +539,26 @@
     if (action === 'skip') {
       event.preventDefault();
       await skipToPersonalize();
+      return;
+    }
+
+    if (action === 'get-started') {
+      event.preventDefault();
+      await completeOnboarding();
+      return;
+    }
+
+    if (action === 'open-library') {
+      event.preventDefault();
+      await completeOnboarding();
+      window.open(chrome.runtime.getURL('sidepanel/sidepanel.html#prompts'), '_blank');
+      return;
+    }
+
+    if (action === 'go-settings') {
+      event.preventDefault();
+      await completeOnboarding();
+      window.open(chrome.runtime.getURL('sidepanel/sidepanel.html#settings'), '_blank');
     }
   };
 

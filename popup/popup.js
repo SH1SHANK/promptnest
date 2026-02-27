@@ -24,21 +24,6 @@ const formatRelativeTime = (isoDate) => {
   } catch { return ''; }
 };
 
-/** Creates a styled empty state block with inline SVG icon and copy. */
-const createEmptyState = async (message) => {
-  const state = document.createElement('div');
-  state.className = 'pn-empty-state';
-  state.innerHTML = `
-    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M4 6.5h16v11H4z"></path>
-      <path d="M8 10h8"></path>
-      <path d="M8 13h5"></path>
-    </svg>
-    <p>${message}</p>
-  `;
-  return state;
-};
-
 /** Hides duplicate confirmation controls and clears pending duplicate save state. */
 const resetDuplicateState = async () => {
   pendingDuplicatePayload = null;
@@ -344,11 +329,25 @@ const renderPrompts = async (filter = '') => {
       container.appendChild(await createPromptCard(prompt, filterStr, tabContext.supported));
     }
   } else if (prompts.length && filterStr) {
-    container.appendChild(await createEmptyState('No saved prompts match your search.'));
+    container.appendChild(createEmptyState({
+      title: 'No results found',
+      message: 'Try a broader query or clear active filters.',
+      actionLabel: 'Clear Filters',
+      onAction: () => {
+        const searchInput = document.getElementById('prompt-search');
+        if (searchInput) {
+          searchInput.value = '';
+        }
+        void renderPrompts('');
+      }
+    }));
   } else if (!prompts.length) {
-    container.appendChild(
-      await createEmptyState('No prompts saved yet. Use the toolbar on any LLM to save your first prompt.')
-    );
+    container.appendChild(createEmptyState({
+      title: 'No Prompts Available',
+      message: 'Create your first prompt to start your library.',
+      actionLabel: 'Add Prompt',
+      onAction: () => { void openModal(); }
+    }));
   }
 
   // -- Templates section --
@@ -484,7 +483,12 @@ const persistPrompt = async (payload) => {
   });
 
   if (!saved) {
-    await showToast('Failed to save prompt.');
+    const storageError = window.Store?.getLastError?.() || '';
+    if (window.Store?.isQuotaError?.(storageError)) {
+      await showToast('Storage quota exceeded. Delete older prompts or history items, then retry.');
+    } else {
+      await showToast('Failed to save prompt.');
+    }
     return false;
   }
 

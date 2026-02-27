@@ -1,10 +1,11 @@
+(() => {
 /**
  * File: content/scraper.js
  * Purpose: Scrapes normalized user and assistant messages from supported LLM pages.
  * Communicates with: utils/platform.js, content/toolbar.js, content/content.js.
  */
 
-/** Returns true when the platform is one of PromptNest's known integrations. */
+/** Returns true when the platform is one of Promptium's known integrations. */
 const isKnownPlatform = async (platform) => Boolean(platform && window.Platform?.SELECTORS?.[platform]);
 
 /** Safely resolves all nodes for a selector or returns an empty list when unavailable. */
@@ -16,7 +17,7 @@ const safeQueryAll = async (selector) => {
   try {
     return Array.from(document.querySelectorAll(selector));
   } catch (error) {
-    console.warn('[PromptNest][Scraper] Invalid selector.', selector, error);
+    console.warn('[Promptium][Scraper] Invalid selector.', selector, error);
     return [];
   }
 };
@@ -81,12 +82,12 @@ const scrape = async (platform = null) => {
     }
 
     if ((await isKnownPlatform(resolvedPlatform)) && messages.length === 0) {
-      console.warn('[PromptNest][Platform] No selectors matched for', resolvedPlatform);
+      console.warn('[Promptium][Platform] No selectors matched for', resolvedPlatform);
     }
 
     return messages;
   } catch (error) {
-    console.error('[PromptNest][Scraper] Failed to scrape messages.', error);
+    console.error('[Promptium][Scraper] Failed to scrape messages.', error);
     return [];
   }
 };
@@ -98,3 +99,5 @@ const Scraper = {
 if (typeof window !== 'undefined') {
   window.Scraper = Scraper;
 }
+
+})();

@@ -1,6 +1,7 @@
+(() => {
 /**
  * File: content/content.js
- * Purpose: Boots PromptNest content features, handles runtime actions, and drives side-panel export selection UI.
+ * Purpose: Boots Promptium content features, handles runtime actions, and drives side-panel export selection UI.
  * Communicates with: utils/platform.js, utils/storage.js, utils/exporter.js, content/scraper.js, content/injector.js, content/toolbar.js, background/service_worker.js.
  */
 
@@ -50,7 +51,7 @@ const notify = async (message) => {
     return;
   }
 
-  console.info('[PromptNest][Content]', text);
+  console.info('[Promptium][Content]', text);
 };
 
 /** Safely queries one element and returns null if the selector throws. */
@@ -116,7 +117,7 @@ const ensureMessageNodeId = async (node) => {
   return nextId;
 };
 
-/** Removes PromptNest-injected controls from cloned content and returns clean message HTML. */
+/** Removes Promptium-injected controls from cloned content and returns clean message HTML. */
 const getSanitizedMessageHtml = async (node) => {
   if (!node) {
     return '';
@@ -212,7 +213,7 @@ const ensureMessageCheckbox = async (node, messageId) => {
     <input
       type="checkbox"
       class="pn-inline-check"
-      aria-label="Select message for PromptNest export"
+      aria-label="Select message for Promptium export"
     />
     <span class="pn-inline-mark"></span>
   `;
@@ -284,13 +285,13 @@ const openSidePanelWithSelection = () => {
     }, (response) => {
       // Background script stores the payload
       if (!response?.ok) {
-        console.warn('[PromptNest] Side panel payload issue:', response?.error);
+        console.warn('[Promptium] Side panel payload issue:', response?.error);
       }
     });
 
     return { ok: true };
   } catch (error) {
-    notify(error?.message || 'Failed to prepare PromptNest export.').catch(console.error);
+    notify(error?.message || 'Failed to prepare Promptium export.').catch(console.error);
     return { ok: false, error: error?.message || 'Failed to open side panel.' };
   }
 };
@@ -299,6 +300,27 @@ const openSidePanelWithSelection = () => {
 const openSidePanelOnly = () => {
   // Opening the panel is handled directly by primitive synchronous listeners now.
   return { ok: true };
+};
+
+/** Activates the selection mode with all messages pre-selected for UI review. */
+const activateSelectionModeAll = () => {
+  if (!exportSelectionState.messageOrder.length) {
+    scanSelectionTargets().catch(console.error);
+    notify('Messages are still loading. Please try again.').catch(console.error);
+    return false;
+  }
+
+  exportSelectionState.selectedIds = new Set(exportSelectionState.messageOrder);
+
+  document.querySelectorAll('.pn-inline-check').forEach((checkbox) => {
+    if (checkbox instanceof HTMLInputElement) {
+      checkbox.checked = true;
+    }
+  });
+  document.querySelectorAll('.pn-inline-select').forEach((el) => el.classList.add('pn-checked'));
+
+  updateSelectionFab().catch(console.error);
+  return true;
 };
 
 /** Selects all currently discovered message rows then opens side panel export view. */
@@ -349,7 +371,7 @@ const ensureSelectionFab = async () => {
       chrome.runtime.sendMessage({ action: 'OPEN_SIDEPANEL' });
       openSidePanelWithSelection();
     } catch (error) {
-      console.error('[PromptNest] Failed to trigger export selection.', error);
+      console.error('[Promptium] Failed to trigger export selection.', error);
     }
   });
 
@@ -729,7 +751,7 @@ const hydratePendingContext = async (platform) => {
       await notify(`Context injected into ${label}`);
     }
   } catch (error) {
-    console.error('[PromptNest][Content] Failed pending context hydration.', error);
+    console.error('[Promptium][Content] Failed pending context hydration.', error);
   }
 };
 
@@ -768,6 +790,7 @@ const init = async () => {
     openPanelOnly: openSidePanelOnly,
     openWithSelection: openSidePanelWithSelection,
     openWithAllMessages: openSidePanelWithAllMessages,
+    activateSelectionModeAll: activateSelectionModeAll,
     getSelectedMessages: buildSelectedMessages
   };
 
@@ -778,3 +801,5 @@ const init = async () => {
 };
 
 void init();
+
+})();

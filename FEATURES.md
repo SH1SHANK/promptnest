@@ -1,90 +1,46 @@
-# Features
+# Promptium Features
 
-PromptNest offers a deep feature set designed to enhance the experience of using leading AI chatbots seamlessly inside your browser. Here is a comprehensive overview:
+## Prompt Library
 
-## 1. Supported Platforms
+- Save prompts from popup, side panel, or in-page toolbar
+- Edit prompts from the library workflow
+- Tag system with custom user-defined tags
+- Filter by tags and search terms
+- Structured categorization support for organized retrieval
 
-PromptNest auto-detects and injects natively into the major conversational AI platforms:
+## Prompt Enhancement
 
-- **ChatGPT** (`chatgpt.com`)
-- **Claude** (`claude.ai`)
-- **Gemini** (`gemini.google.com`)
-- **Perplexity** (`www.perplexity.ai`)
-- **Microsoft Copilot** (`copilot.microsoft.com`)
+- Improve prompts before saving or injecting
+- One-click optimization with style modes (general, coding, study, creative)
+- Direct inject to the active LLM chat after improvement
 
-When you visit any of these pages, PromptNest adds a floating toolbar to the bottom right of the screen.
+## Curated Templates
 
-## 2. In-Page Floating Toolbar
+- Built-in expert templates for common tasks
+- Expandable template architecture via `utils/templates.js`
 
-A completely non-intrusive floating action button available on all supported LLM sites.
-- **Save Prompts**: Click to quickly save the current prompt you are writing.
-- **Export Chat Session**: Easily access export capabilities straight from the active conversation without needing to open the popup.
+## Semantic Search
 
-## 3. On-Device AI (Transformers.js)
+- Transformers.js powered embedding search
+- Relevance-based ranking from cosine similarity
+- Vector similarity comparison for semantically related prompts
+- Efficient indexing strategy using cached embeddings in extension storage
 
-PromptNest runs a local, privacy-first AI model directly in your browser using **Transformers.js**. Your saved prompts never leave your device for these operations:
-- **Semantic Search**: Find prompts based on their *meaning*, not just exact keyword matches. Searching for "react bug" will find a prompt titled "Fix frontend error".
-- **Auto-Tag Suggestions**: When saving a new prompt, the local AI analyzes the text and automatically suggests relevant tags (e.g., `coding`, `creative`, `study`).
-- **Smart Duplicate Detection**: Before saving, PromptNest checks if you already have a semantically similar prompt saved and warns you, keeping your library clean.
+## Chat Export
 
-## 4. Popup & Side Panel Control Center
+- Select specific message ranges using in-page checkboxes
+- Multi-format export: Markdown, PDF, JSON, Plain Text
+- Custom header/footer style controls through export preferences and metadata toggles
 
-The PromptNest central UI is accessible as both a traditional Extension Popup and a persistent Side Panel (if supported/configured by your browser).
+## Settings
 
-### Saved Prompts Library
-- **Direct Injection**: Click **Inject** to immediately send the saved prompt into the chat window of the supported platform you're viewing.
-- **Copy to Clipboard**: Quick, one-click copy button with animated visual feedback.
-- **Text Truncation**: Extremely long prompts are elegantly truncated to prevent visual clutter, with an expanding **"Show more"** toggle.
+- API key management for Gemini-based prompt improvement
+- Model selection behavior through style presets and AI readiness state
+- Feature toggles for semantic search, duplicate detection, and auto-tagging
 
-### Chat History Management
-- Logs your recent export sessions.
-- Displays metadata including message counts, source platform, and relative time of export.
-- Quick **Export** button to re-export in your chosen format (PDF/JSON/etc) straight from the history view.
+## Additional UX Improvements
 
-## 5. Curated Prompt Templates
-
-PromptNest ships with **100+ expert prompt templates** across 10 categories, so you never have to start from scratch:
-
-| Category | Templates |
-|----------|-----------|
-| **Coding & Dev** | Code review, debugging, refactoring, regex generators |
-| **Engineering & CAD** | SolidWorks/AutoCAD macros, MATLAB, FEA setups |
-| **3D Modeling & Animation** | Blender/Maya scripting, Unreal Blueprints, rigging |
-| **Design & UI/UX** | Figma plugins, wireframing, color palettes, UX critique |
-| **Writing & Content** | Blog posts, professional emails, news summaries |
-| **Academic & Study** | Concept explanations, quiz generation, tutoring |
-| **Career & Business** | Resume bullets, interview prep, salary negotiation |
-| **Productivity** | Meeting agendas, decision matrices, Pomodoro schedules |
-| **Data & Analysis** | SQL queries, Regex parsing, statistical tests |
-| **Daily Life & General** | Meal planners, workout routines, travel itineraries |
-
-- Templates appear in a **collapsible section** below your saved prompts.
-- Each template is marked with a purple **TEMPLATE** badge.
-- **Save to My Prompts**: One click copies a template into your personal library for customization.
-- Templates are fully **searchable** alongside your saved prompts.
-
-## 6. Advanced Export Controls
-
-Export your entire multi-turn chat sessions exactly how you want them:
-- **Formats**: Available in Markdown (`.md`), Plain Text (`.txt`), structured object (`.json`), or rendered Portable Document Format (`.pdf`).
-- **Granular Toggles**: 
-  - Add or remove message numbering (e.g., `1. `, `2. `) across all formats.
-  - Include platform origin labels.
-  - Include export timestamps.
-- **Direct Clipboard Integration**: A single click copies the entire parsed chat format directly to your system clipboard.
-- **Custom Filenames**: Override auto-generated naming conventions (like `promptnest_chatgpt_2026-02-27.md`) with a name of your choice.
-
-## 7. AI "Improve Prompt"
-
-Let an AI system dynamically refine your prompt before you send it:
-- A dedicated **Improve** button opens a full comparison modal showing what changes were made.
-- **Side-by-side Diff View**: See the original next to the improved version with exact character count differences.
-- **Styles**: Choose between **General Polish**, **Coding/Tech**, **Study/Summarize**, and **Creative Writing**.
-- **Undo Capability**: A safe "Undo" toast drops in immediately after saving in case you change your mind.
-
-## 8. Modern Clean UI
-
-PromptNest uses an ultra-modern aesthetic standard.
-- Completely fully-styled **Dark Mode**.
-- Smooth CSS animations, skeleton loaders, and micro-interactions (e.g., copy confirmations, AI visual badges).
-- Semantic search score chips, mono-spaced data badges, and floating action menus.
+- Action-oriented empty states with primary CTAs
+- Actionable error states with retry paths and guidance
+- Side panel hash routing (`#prompts`, `#settings`, etc.)
+- Updated onboarding with feature grouping and launch actions

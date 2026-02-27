@@ -1,3 +1,4 @@
+(() => {
 /**
  * File: utils/tags.js
  * Purpose: Shared tag badge UI and parsing functions used by popup, sidepanel, and toolbar.
@@ -58,5 +59,8 @@ const addTagBadge = (tag) => {
 const Tags = { parseTags, syncBadgesToHidden, addTagBadge };
 
 if (typeof window !== 'undefined') {
+  Object.assign(window, Tags);
   window.Tags = Tags;
 }
+
+})();

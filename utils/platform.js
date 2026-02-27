@@ -1,3 +1,4 @@
+(() => {
 /**
  * File: utils/platform.js
  * Purpose: Defines platform-specific selectors and detection logic for supported LLM websites.
@@ -93,5 +94,8 @@ const Platform = {
 };
 
 if (typeof window !== 'undefined') {
+  Object.assign(window, Platform);
   window.Platform = Platform;
 }
+
+})();

@@ -1,3 +1,4 @@
+(() => {
 /**
  * File: utils/constants.js
  * Purpose: Shared constants used across multiple extension contexts.
@@ -23,3 +24,5 @@ if (typeof window !== 'undefined') {
   window.PLATFORM_LABELS = PLATFORM_LABELS;
   window.SUPPORTED_URLS = SUPPORTED_URLS;
 }
+
+})();

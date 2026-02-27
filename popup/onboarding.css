@@ -183,6 +183,17 @@
   transform: scale(0.99);
 }
 
+.pn-onboard-btn.pn-btn--ghost {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+}
+
+.pn-onboard-btn.pn-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--accent);
+}
+
 .pn-onboard-skip {
   display: block;
   text-align: center;

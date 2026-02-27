@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PromptNest Side Panel</title>
+    <title>Promptium Side Panel</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="../icons/promptium/icon32.png" />
     <link rel="stylesheet" href="../popup/popup.css" />
     <link rel="stylesheet" href="../popup/onboarding.css" />
     <link rel="stylesheet" href="tailwind.css" />
@@ -75,19 +76,27 @@
     </header>
 
     <div id="search-wrap" class="pn-search-row">
-      <input
-        id="prompt-search"
-        class="pn-search"
-        type="text"
-        placeholder="Search prompts by title, text, or tags"
-      />
+      <div class="pn-search-input-wrap">
+        <input
+          id="prompt-search"
+          class="pn-search"
+          type="text"
+          placeholder="Search prompts by title, text, or tags"
+        />
+        <button id="pn-search-clear" type="button" class="pn-search-clear pn-hidden" aria-label="Clear search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
       <span id="pn-search-spark" class="pn-search-spark pn-hidden">✦</span>
       <div id="pn-ai-bar" class="pn-ai-bar pn-ai-bar--hidden">
         <div class="pn-ai-bar__line"></div>
       </div>
     </div>
 
-    <nav class="pn-tab-bar" aria-label="PromptNest tabs">
+    <nav class="pn-tab-bar" aria-label="Promptium tabs">
       <button class="tab pn-tab active" data-tab="prompts" type="button">
         Prompts
       </button>
@@ -112,7 +121,7 @@
         <div class="pn-export-grid">
           <aside class="pn-export-controls">
             <div class="pn-export-meta-badges">
-              <span id="selection-meta" class="pn-card-meta">No message selection received yet.</span>
+              <span id="selection-meta" class="pn-card-meta">No messages selected</span>
               <div id="export-counts" class="pn-export-counts pn-hidden">
                 <span id="export-msg-count" class="pn-export-count-badge">0 msgs</span>
                 <span id="export-word-count" class="pn-export-count-badge">0 words</span>
@@ -127,6 +136,59 @@
                 <option value="json">JSON (.json)</option>
                 <option value="pdf">PDF (.pdf)</option>
               </select>
+            </label>
+
+            <label class="pn-field">
+              <span>Content Mode</span>
+              <select id="export-content-mode">
+                <option value="structured">Structured messages</option>
+                <option value="combined">Combined text</option>
+              </select>
+            </label>
+
+            <label class="pn-field">
+              <span>Font Family</span>
+              <select id="export-font-style">
+                <option value="System">System</option>
+                <option value="Outfit">Outfit</option>
+                <option value="Montserrat">Montserrat</option>
+                <option value="Montstret">Montstret</option>
+                <option value="Inter">Inter</option>
+                <option value="Helvetica">Helvetica</option>
+                <option value="Helivica">Helivica</option>
+                <option value="Poppins">Poppins</option>
+                <option value="Roboto">Roboto</option>
+                <option value="Open Sans">Open Sans</option>
+                <option value="Lato">Lato</option>
+                <option value="Nunito">Nunito</option>
+                <option value="Source Sans 3">Source Sans 3</option>
+                <option value="Merriweather">Merriweather</option>
+                <option value="JetBrains Mono">JetBrains Mono</option>
+                <option value="Georgia">Georgia</option>
+              </select>
+            </label>
+
+            <label class="pn-field">
+              <span>Font Size</span>
+              <div class="pn-export-font-row">
+                <input id="export-font-size" type="range" min="12" max="20" step="1" value="14" />
+                <input id="export-font-size-number" type="number" min="12" max="20" step="1" value="14" />
+              </div>
+            </label>
+
+            <label class="pn-field">
+              <span>Background</span>
+              <select id="export-bg-style">
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+                <option value="sepia">Sepia</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+
+            <label id="export-bg-custom-wrap" class="pn-field pn-hidden">
+              <span>Custom Background</span>
+              <input id="export-bg-custom" type="color" value="#18181c" />
             </label>
 
             <label class="pn-field">
@@ -161,13 +223,18 @@
                 Copy
               </button>
             </div>
-            <p id="export-status" class="pn-card-meta"></p>
+            <div id="export-status" class="pn-card-meta"></div>
           </aside>
 
           <section class="pn-export-preview-shell">
             <div class="pn-export-preview-head">
-              <h3 class="pn-section-title">Preview</h3>
-              <p id="preview-label" class="pn-card-meta">Markdown preview</p>
+              <div>
+                <h3 class="pn-section-title">Preview</h3>
+                <p id="preview-label" class="pn-card-meta">Markdown preview</p>
+              </div>
+              <button id="export-reload-selection" type="button" class="pn-btn pn-btn--ghost pn-hidden">
+                Reload latest selection
+              </button>
             </div>
             <div id="preview" class="pn-export-preview-body"></div>
           </section>
@@ -176,7 +243,7 @@
 
       <section class="tab-content pn-tab-content" data-tab="tags">
         <div class="pn-tags-view">
-          <div class="pn-tags-view-header" style="margin: 14px 12px 8px;">
+          <div class="pn-tags-view-header pn-tags-view-header--spaced">
             <h3 class="pn-section-title">Quick Filters</h3>
             <p class="pn-card-meta">Click a tag to view matching prompts</p>
           </div>
@@ -184,9 +251,9 @@
             <!-- Chips injected here -->
           </div>
 
-          <hr class="pn-sv-divider" style="margin: 16px 0;" />
+          <hr class="pn-sv-divider pn-sv-divider--spaced" />
 
-          <div class="pn-tags-view-header" style="margin: 14px 12px 8px;">
+          <div class="pn-tags-view-header pn-tags-view-header--spaced">
             <h3 class="pn-section-title">Manage Tags</h3>
           </div>
           <div id="tag-list" class="pn-tag-list">
@@ -237,6 +304,7 @@
               <span class="pn-sv-model-pill__dot"></span>
               <span id="ai-progress-text">Initializing…</span>
             </div>
+            <button id="pn-ai-retry-btn" class="pn-btn pn-btn--ghost pn-hidden" type="button">Retry Embedding Setup</button>
           </div>
 
           <hr class="pn-sv-divider" />
@@ -357,56 +425,73 @@
       </section>
     </main>
 
-    <div id="add-modal" class="pn-modal pn-hidden">
+    <div
+      id="add-modal"
+      class="pn-modal pn-hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pn-add-modal-title"
+      aria-describedby="pn-add-modal-desc"
+    >
       <div class="pn-modal__backdrop" data-close-modal></div>
-      <div class="pn-modal__panel">
-        <h2 class="pn-modal__title">Save Prompt</h2>
+      <div class="pn-modal__panel pn-add-modal__panel">
+        <h2 id="pn-add-modal-title" class="pn-modal__title">Add Prompt</h2>
+        <p id="pn-add-modal-desc" class="pn-card-meta pn-add-modal__desc">
+          Save a reusable prompt with optional AI polish and tag suggestions.
+        </p>
 
-        <label class="pn-field">
-          <span>Title</span>
-          <input id="prompt-title" type="text" placeholder="Prompt title" />
-        </label>
-
-        <label class="pn-field">
-          <span>Prompt Text</span>
-          <textarea
-            id="prompt-text"
-            rows="6"
-            placeholder="Write your prompt here..."
-          ></textarea>
-        </label>
-
-        <label class="pn-field">
-          <span>Tags</span>
-          <div class="pn-tag-badges" id="tag-badges-wrap">
-            <input
-              id="prompt-tags-input"
-              class="pn-tag-badges__input"
-              type="text"
-              placeholder="Type a tag and press Space"
-            />
-          </div>
-          <input id="prompt-tags" type="hidden" />
-        </label>
-
-        <div id="pn-tag-suggestions" class="pn-tag-suggestions"></div>
-
-        <div id="pn-duplicate-warning" class="pn-duplicate-warning pn-hidden"></div>
-
-        <div class="pn-ai-actions" style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center; justify-content: flex-end;">
-          <select id="pn-improve-style" class="pn-sv-select" style="padding: 4px 8px; font-size: 12px; background: #111114; color: #ececf1; border: 1px solid #333; border-radius: 6px;">
-            <option value="general">General Polish</option>
-            <option value="coding">Coding / Tech</option>
-            <option value="study">Study / Summarize</option>
-            <option value="creative">Creative Writing</option>
-          </select>
-          <button id="pn-improve-prompt-btn" class="pn-btn pn-btn--ghost" type="button" style="color: #a49aff; border: 1px solid rgba(164, 154, 255, 0.3); font-size: 13px; padding: 4px 12px; display: flex; align-items: center; gap: 6px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>
-            Improve
-          </button>
+        <div class="pn-add-modal__section">
+          <label class="pn-field">
+            <span>Title</span>
+            <input id="prompt-title" type="text" placeholder="Prompt title" />
+          </label>
         </div>
 
-        <div class="pn-modal__actions">
+        <div class="pn-add-modal__section">
+          <label class="pn-field">
+            <span>Prompt Text</span>
+            <textarea
+              id="prompt-text"
+              rows="6"
+              placeholder="Write your prompt here..."
+            ></textarea>
+          </label>
+        </div>
+
+        <div class="pn-add-modal__section">
+          <label class="pn-field">
+            <span>Tags</span>
+            <div class="pn-tag-badges" id="tag-badges-wrap">
+              <input
+                id="prompt-tags-input"
+                class="pn-tag-badges__input"
+                type="text"
+                placeholder="Type a tag and press Space"
+              />
+            </div>
+            <input id="prompt-tags" type="hidden" />
+          </label>
+
+          <div id="pn-tag-suggestions" class="pn-tag-suggestions"></div>
+          <div id="pn-duplicate-warning" class="pn-duplicate-warning pn-hidden"></div>
+        </div>
+
+        <div class="pn-add-modal__section pn-add-modal__section--ai">
+          <div class="pn-add-ai-actions">
+            <select id="pn-improve-style" class="pn-sv-select pn-add-improve-style">
+              <option value="general">General Polish</option>
+              <option value="coding">Coding / Tech</option>
+              <option value="study">Study / Summarize</option>
+              <option value="creative">Creative Writing</option>
+            </select>
+            <button id="pn-improve-prompt-btn" class="pn-btn pn-btn--ghost pn-add-improve-btn" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>
+              Improve Text
+            </button>
+          </div>
+        </div>
+
+        <div class="pn-modal__actions pn-add-modal__actions">
           <button id="cancel-modal" class="pn-btn pn-btn--ghost" type="button">
             Cancel
           </button>
@@ -429,12 +514,18 @@
     </div>
 
     <!-- Improve Prompt Diff Modal -->
-    <div id="pn-improve-modal" class="pn-modal pn-hidden">
+    <div
+      id="pn-improve-modal"
+      class="pn-modal pn-hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pn-improve-modal-title"
+    >
       <div class="pn-modal__backdrop" data-close-improve></div>
       <div class="pn-modal__panel pn-improve-panel">
         <div class="pn-improve-header">
-          <h2 class="pn-modal__title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#a49aff;vertical-align:-2px;margin-right:6px"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>
+          <h2 id="pn-improve-modal-title" class="pn-modal__title">
+            <svg class="pn-improve-title-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>
             Improve Prompt
           </h2>
           <select id="pn-improve-modal-style" class="pn-improve-style-select">
@@ -475,15 +566,16 @@
         </div>
 
         <div class="pn-improve-actions">
-          <button id="pn-improve-reject" class="pn-btn pn-btn--ghost" type="button">Discard</button>
-          <button id="pn-improve-retry" class="pn-btn pn-btn--ghost" type="button" style="color:#a49aff">Retry</button>
-          <button id="pn-improve-accept" class="pn-btn pn-btn--primary" type="button">Accept & Save</button>
+          <button id="pn-improve-reject" class="pn-btn pn-btn-danger" type="button">Discard</button>
+          <button id="pn-improve-retry" class="pn-btn pn-btn--ghost" type="button">Retry</button>
+          <button id="pn-improve-save-only" class="pn-btn pn-btn--ghost pn-hidden" type="button">Save to Library</button>
+          <button id="pn-improve-accept-secondary" class="pn-btn pn-btn--ghost pn-hidden" type="button">Inject + Save</button>
+          <button id="pn-improve-accept" class="pn-btn pn-btn--primary" type="button">Use Improved Text</button>
         </div>
       </div>
     </div>
 
     <script src="../libs/jspdf.min.js"></script>
-    <script src="../libs/html2pdf.bundle.min.js"></script>
     <script src="../libs/turndown.js"></script>
     <script src="../libs/markdown-it.min.js"></script>
     <script src="../utils/constants.js"></script>
@@ -491,6 +583,7 @@
     <script src="../utils/tags.js"></script>
     <script src="../utils/storage.js"></script>
     <script src="../utils/exporter.js"></script>
+    <script src="../utils/templates.js"></script>
     <script src="../utils/ai.js"></script>
     <script src="../utils/ai-bridge.js"></script>
     <script src="sidepanel.js"></script>

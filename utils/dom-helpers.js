@@ -1,3 +1,4 @@
+(() => {
 /**
  * File: utils/dom-helpers.js
  * Purpose: Shared DOM utility functions used across popup, sidepanel, toolbar, and content scripts.
@@ -16,8 +17,16 @@ const showToast = (message) => {
   setTimeout(() => { toast.remove(); }, 2400);
 };
 
-/** Builds reusable empty state markup with icon and copy. */
-const createEmptyState = (message) => {
+/** Builds reusable empty state markup with icon, copy, and optional action button. */
+const createEmptyState = (messageOrConfig, maybeOptions = {}) => {
+  const isConfig = messageOrConfig && typeof messageOrConfig === 'object' && !Array.isArray(messageOrConfig);
+  const title = isConfig ? String(messageOrConfig.title || '').trim() : '';
+  const message = isConfig ? String(messageOrConfig.message || '').trim() : String(messageOrConfig || '').trim();
+  const actionLabel = isConfig
+    ? String(messageOrConfig.actionLabel || '').trim()
+    : String(maybeOptions.actionLabel || '').trim();
+  const onAction = isConfig ? messageOrConfig.onAction : maybeOptions.onAction;
+
   const stateNode = document.createElement('div');
   stateNode.className = 'pn-empty-state';
   stateNode.innerHTML = `
@@ -26,8 +35,21 @@ const createEmptyState = (message) => {
       <path d="M8 10h8"></path>
       <path d="M8 13h5"></path>
     </svg>
-    <p>${String(message || '').trim()}</p>
+    ${title ? `<p class="pn-empty-state__title">${title}</p>` : ''}
+    <p>${message}</p>
   `;
+
+  if (actionLabel) {
+    const actionButton = document.createElement('button');
+    actionButton.type = 'button';
+    actionButton.className = 'pn-btn pn-btn--primary pn-empty-state__action';
+    actionButton.textContent = actionLabel;
+    if (typeof onAction === 'function') {
+      actionButton.addEventListener('click', onAction);
+    }
+    stateNode.appendChild(actionButton);
+  }
+
   return stateNode;
 };
 
@@ -96,5 +118,8 @@ const DomHelpers = {
 };
 
 if (typeof window !== 'undefined') {
+  Object.assign(window, DomHelpers);
   window.DomHelpers = DomHelpers;
 }
+
+})();

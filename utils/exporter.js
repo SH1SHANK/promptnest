@@ -1,3 +1,4 @@
+(() => {
 /**
  * File: utils/exporter.js
  * Purpose: Converts chat data into markdown, text, and PDF export files with optional presentation preferences.
@@ -9,7 +10,9 @@ const DEFAULT_PREFS = {
   fontSize: 14,
   background: 'dark',
   customBackground: '#18181c',
+  contentMode: 'structured',
   includeTimestamps: false,
+  includeExportDate: true,
   includePlatformLabel: true,
   includeMessageNumbers: false,
   headerText: ''
@@ -24,7 +27,9 @@ const normalizePrefs = (prefs = {}) => {
     fontSize: Number.isFinite(numericFontSize) ? Math.min(20, Math.max(12, numericFontSize)) : DEFAULT_PREFS.fontSize,
     background: String(merged.background || DEFAULT_PREFS.background).toLowerCase(),
     customBackground: String(merged.customBackground || DEFAULT_PREFS.customBackground),
+    contentMode: String(merged.contentMode || DEFAULT_PREFS.contentMode).toLowerCase(),
     includeTimestamps: Boolean(merged.includeTimestamps),
+    includeExportDate: Boolean(merged.includeExportDate),
     includePlatformLabel: Boolean(merged.includePlatformLabel),
     includeMessageNumbers: Boolean(merged.includeMessageNumbers),
     headerText: String(merged.headerText || '').trim()
@@ -35,7 +40,7 @@ const normalizePrefs = (prefs = {}) => {
 const normalizeChat = (chat) => {
   const value = chat && typeof chat === 'object' ? chat : {};
   return {
-    title: String(value.title || 'PromptNest Chat').trim(),
+    title: String(value.title || 'Promptium Chat').trim(),
     platform: String(value.platform || 'unknown').trim(),
     createdAt: String(value.createdAt || new Date().toISOString()),
     messages: Array.isArray(value.messages) ? value.messages : []
@@ -64,6 +69,12 @@ const buildTimestampPrefix = (message, prefs) => {
   return `[${stamp.toLocaleTimeString()}] `;
 };
 
+/** Returns plain message text rows in original order. */
+const getMessageTextRows = (chat) => (chat.messages || []).map((message) => String(message?.text || '').trim()).filter(Boolean);
+
+/** Returns one merged text block for combined export mode. */
+const getCombinedText = (chat) => getMessageTextRows(chat).join('\n\n').trim();
+
 /** Maps user-facing font selection to an available jsPDF font family. */
 const resolvePdfFont = (fontStyle) => {
   const normalized = String(fontStyle || '').toLowerCase();
@@ -72,8 +83,25 @@ const resolvePdfFont = (fontStyle) => {
     return 'courier';
   }
 
-  if (normalized.includes('georgia')) {
+  if (normalized.includes('georgia') || normalized.includes('merriweather')) {
     return 'times';
+  }
+
+  if (
+    normalized.includes('outfit') ||
+    normalized.includes('montserrat') ||
+    normalized.includes('montstret') ||
+    normalized.includes('inter') ||
+    normalized.includes('helvetica') ||
+    normalized.includes('helivica') ||
+    normalized.includes('poppins') ||
+    normalized.includes('roboto') ||
+    normalized.includes('open sans') ||
+    normalized.includes('lato') ||
+    normalized.includes('nunito') ||
+    normalized.includes('source sans')
+  ) {
+    return 'helvetica';
   }
 
   return 'helvetica';
@@ -92,8 +120,13 @@ const resolveBackgroundColors = (prefs) => {
   }
 
   if (choice === 'custom' && /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(prefs.customBackground || '')) {
-    const raw = String(prefs.customBackground);
-    return { page: raw, text: '#f5f5f5' };
+    let raw = String(prefs.customBackground || '').trim().toLowerCase();
+    if (raw.length === 4) {
+      raw = `#${raw[1]}${raw[1]}${raw[2]}${raw[2]}${raw[3]}${raw[3]}`;
+    }
+    const rgb = hexToRgb(raw);
+    const luminance = ((0.299 * rgb[0]) + (0.587 * rgb[1]) + (0.114 * rgb[2])) / 255;
+    return { page: raw, text: luminance > 0.6 ? '#111111' : '#f5f5f5' };
   }
 
   return { page: '#18181c', text: '#f5f5f5' };
@@ -123,7 +156,7 @@ const buildFilename = (chat, extension) => {
   const rawPlatform = String(chat?.platform || 'unknown').toLowerCase();
   const platform = rawPlatform.replace(/[^a-z0-9]+/g, '') || 'unknown';
   const date = new Date().toISOString().slice(0, 10);
-  return `promptnest_${platform}_${date}.${extension}`;
+  return `promptium_${platform}_${date}.${extension}`;
 };
 
 /** Converts chat data to markdown with optional metadata controls from prefs. */
@@ -136,7 +169,9 @@ const toMarkdown = async (chat, prefs = {}) => {
     headerLines.push(`Platform: ${normalizedChat.platform.toUpperCase()}`);
   }
 
-  headerLines.push(`Exported: ${new Date().toLocaleString()}`);
+  if (options.includeExportDate) {
+    headerLines.push(`Exported: ${new Date().toLocaleString()}`);
+  }
 
   if (options.headerText) {
     headerLines.push('', `## ${options.headerText}`);
@@ -144,13 +179,18 @@ const toMarkdown = async (chat, prefs = {}) => {
 
   const rows = [];
 
-  for (let index = 0; index < normalizedChat.messages.length; index += 1) {
-    const message = normalizedChat.messages[index];
-    const role = formatRole(message.role);
-    const prefix = buildTimestampPrefix(message, options);
-    const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
-    const text = String(message.text || '').trim();
-    rows.push(`**${messageNumber}${role}:** ${prefix}${text}`);
+  if (options.contentMode === 'combined') {
+    const combinedText = getCombinedText(normalizedChat);
+    rows.push(combinedText);
+  } else {
+    for (let index = 0; index < normalizedChat.messages.length; index += 1) {
+      const message = normalizedChat.messages[index];
+      const role = formatRole(message.role);
+      const prefix = buildTimestampPrefix(message, options);
+      const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
+      const text = String(message.text || '').trim();
+      rows.push(`**${messageNumber}${role}:** ${prefix}${text}`);
+    }
   }
 
   const body = rows.join('\n\n---\n\n');
@@ -168,7 +208,9 @@ const toTXT = async (chat, prefs = {}) => {
     header.push(`Platform: ${normalizedChat.platform.toUpperCase()}`);
   }
 
-  header.push(`Exported: ${new Date().toLocaleString()}`);
+  if (options.includeExportDate) {
+    header.push(`Exported: ${new Date().toLocaleString()}`);
+  }
 
   if (options.headerText) {
     header.push(options.headerText);
@@ -176,13 +218,17 @@ const toTXT = async (chat, prefs = {}) => {
 
   const rows = [];
 
-  for (let index = 0; index < normalizedChat.messages.length; index += 1) {
-    const message = normalizedChat.messages[index];
-    const role = formatRole(message.role);
-    const prefix = buildTimestampPrefix(message, options);
-    const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
-    const text = String(message.text || '').trim();
-    rows.push(`${messageNumber}${role}: ${prefix}${text}`);
+  if (options.contentMode === 'combined') {
+    rows.push(getCombinedText(normalizedChat));
+  } else {
+    for (let index = 0; index < normalizedChat.messages.length; index += 1) {
+      const message = normalizedChat.messages[index];
+      const role = formatRole(message.role);
+      const prefix = buildTimestampPrefix(message, options);
+      const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
+      const text = String(message.text || '').trim();
+      rows.push(`${messageNumber}${role}: ${prefix}${text}`);
+    }
   }
 
   return `${header.join('\n')}\n${divider}\n${rows.join(`\n${divider}\n`)}`.trim();
@@ -257,7 +303,9 @@ const toPDF = async (chat, prefs = {}) => {
     );
   }
 
-  y = await writePdfLine(doc, `Exported: ${new Date().toLocaleString()}`, y, pageHeight, margin, maxWidth, lineHeight, backgroundRgb);
+  if (options.includeExportDate) {
+    y = await writePdfLine(doc, `Exported: ${new Date().toLocaleString()}`, y, pageHeight, margin, maxWidth, lineHeight, backgroundRgb);
+  }
 
   if (options.headerText) {
     y = await writePdfLine(doc, options.headerText, y, pageHeight, margin, maxWidth, lineHeight, backgroundRgb);
@@ -265,22 +313,27 @@ const toPDF = async (chat, prefs = {}) => {
 
   y += lineHeight;
 
-  for (let index = 0; index < normalizedChat.messages.length; index += 1) {
-    const message = normalizedChat.messages[index];
-    const role = formatRole(message.role);
-    const prefix = buildTimestampPrefix(message, options);
-    const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
-    y = await writePdfLine(
-      doc,
-      `${messageNumber}${role}: ${prefix}${String(message.text || '').trim()}`,
-      y,
-      pageHeight,
-      margin,
-      maxWidth,
-      lineHeight,
-      backgroundRgb
-    );
-    y += Math.round(lineHeight * 0.55);
+  if (options.contentMode === 'combined') {
+    const combinedText = getCombinedText(normalizedChat);
+    y = await writePdfLine(doc, combinedText, y, pageHeight, margin, maxWidth, lineHeight, backgroundRgb);
+  } else {
+    for (let index = 0; index < normalizedChat.messages.length; index += 1) {
+      const message = normalizedChat.messages[index];
+      const role = formatRole(message.role);
+      const prefix = buildTimestampPrefix(message, options);
+      const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
+      y = await writePdfLine(
+        doc,
+        `${messageNumber}${role}: ${prefix}${String(message.text || '').trim()}`,
+        y,
+        pageHeight,
+        margin,
+        maxWidth,
+        lineHeight,
+        backgroundRgb
+      );
+      y += Math.round(lineHeight * 0.55);
+    }
   }
 
   return doc.output('arraybuffer');
@@ -334,18 +387,23 @@ const toJSON = async (chat, prefs = {}) => {
   const options = normalizePrefs(prefs);
   const output = {
     title: normalizedChat.title,
-    platform: normalizedChat.platform,
-    exportedAt: new Date().toISOString(),
-    messageCount: normalizedChat.messages.length,
-    messages: normalizedChat.messages.map((message, index) => {
+    exportedAt: options.includeExportDate ? new Date().toISOString() : null,
+    messageCount: normalizedChat.messages.length
+  };
+  if (options.contentMode === 'combined') {
+    output.combinedText = getCombinedText(normalizedChat);
+  } else {
+    output.messages = normalizedChat.messages.map((message, index) => {
       const entry = {
         role: String(message.role || 'unknown').trim(),
         text: String(message.text || '').trim()
       };
       if (options.includeMessageNumbers) entry.number = index + 1;
       return entry;
-    })
-  };
+    });
+  }
+  if (options.includePlatformLabel) output.platform = normalizedChat.platform;
+  if (!options.includeExportDate) delete output.exportedAt;
   if (!options.includePlatformLabel) delete output.platform;
   return JSON.stringify(output, null, 2);
 };
@@ -359,15 +417,23 @@ const toClipboardText = async (chat, prefs = {}) => {
   if (options.includePlatformLabel) {
     lines.push(`Platform: ${normalizedChat.platform}`);
   }
+  if (options.includeExportDate) {
+    lines.push(`Exported: ${new Date().toLocaleString()}`);
+  }
   lines.push('');
 
-  for (let index = 0; index < normalizedChat.messages.length; index += 1) {
-    const message = normalizedChat.messages[index];
-    const role = formatRole(message.role);
-    const prefix = buildTimestampPrefix(message, options);
-    const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
-    lines.push(`${messageNumber}${role}: ${prefix}${String(message.text || '').trim()}`);
+  if (options.contentMode === 'combined') {
+    lines.push(getCombinedText(normalizedChat));
     lines.push('');
+  } else {
+    for (let index = 0; index < normalizedChat.messages.length; index += 1) {
+      const message = normalizedChat.messages[index];
+      const role = formatRole(message.role);
+      const prefix = buildTimestampPrefix(message, options);
+      const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
+      lines.push(`${messageNumber}${role}: ${prefix}${String(message.text || '').trim()}`);
+      lines.push('');
+    }
   }
 
   return lines.join('\n').trim();
@@ -384,5 +450,8 @@ const Exporter = {
 };
 
 if (typeof window !== 'undefined') {
+  Object.assign(window, Exporter);
   window.Exporter = Exporter;
 }
+
+})();

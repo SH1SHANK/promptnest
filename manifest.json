@@ -1,15 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "PromptNest",
-  "description": "A professional prompt and chat workflow toolkit for modern LLM platforms.",
+  "name": "Promptium",
+  "short_name": "Promptium",
+  "description": "Advanced prompt management and AI workflow extension with semantic search, templates, optimization, and chat export.",
   "version": "0.1.0",
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "icons/promptium/icon16.png",
+    "32": "icons/promptium/icon32.png",
+    "48": "icons/promptium/icon48.png",
+    "128": "icons/promptium/icon128.png"
   },
   "action": {
-    "default_title": "PromptNest"
+    "default_icon": {
+      "16": "icons/promptium/icon16.png",
+      "32": "icons/promptium/icon32.png"
+    },
+    "default_title": "Promptium"
   },
   "side_panel": {
     "default_path": "sidepanel/sidepanel.html"
@@ -26,11 +32,11 @@
     "sidePanel"
   ],
   "host_permissions": [
-    "https://chatgpt.com/*",
-    "https://claude.ai/*",
-    "https://gemini.google.com/*",
-    "https://www.perplexity.ai/*",
-    "https://copilot.microsoft.com/*"
+    "*://*.chatgpt.com/*",
+    "*://*.claude.ai/*",
+    "*://gemini.google.com/*",
+    "*://*.perplexity.ai/*",
+    "*://copilot.microsoft.com/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; style-src 'self'; font-src 'self' data:"
@@ -38,11 +44,11 @@
   "content_scripts": [
     {
       "matches": [
-        "https://chatgpt.com/*",
-        "https://claude.ai/*",
-        "https://gemini.google.com/*",
-        "https://www.perplexity.ai/*",
-        "https://copilot.microsoft.com/*"
+        "*://*.chatgpt.com/*",
+        "*://*.claude.ai/*",
+        "*://gemini.google.com/*",
+        "*://*.perplexity.ai/*",
+        "*://copilot.microsoft.com/*"
       ],
       "js": [
         "libs/jspdf.min.js",
@@ -52,6 +58,7 @@
         "utils/platform.js",
         "utils/storage.js",
         "utils/exporter.js",
+        "utils/templates.js",
         "content/scraper.js",
         "content/injector.js",
         "content/toolbar.js",

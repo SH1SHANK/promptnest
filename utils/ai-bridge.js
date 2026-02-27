@@ -39,6 +39,10 @@ const AIBridge = {
     return this._send({ type: 'AI_IMPROVE_PROMPT', text, tags, style });
   },
 
+  async generatePromptTitle(text) {
+    return this._send({ type: 'AI_GENERATE_PROMPT_TITLE', text });
+  },
+
   async getStatus() {
     return this._send({ type: 'AI_STATUS_CHECK' });
   },
@@ -47,7 +51,7 @@ const AIBridge = {
     try {
       return await chrome.runtime.sendMessage(message);
     } catch (error) {
-      console.warn('[PromptNest][AIBridge] Message failed:', message?.type, error?.message);
+      console.warn('[Promptium][AIBridge] Message failed:', message?.type, error?.message);
       return null;
     }
   },

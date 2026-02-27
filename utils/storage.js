@@ -1,3 +1,4 @@
+(() => {
 /**
  * File: utils/storage.js
  * Purpose: Provides prompt and history CRUD operations backed by chrome.storage.local.
@@ -7,14 +8,27 @@
 const PROMPTS_KEY = 'prompts';
 const HISTORY_KEY = 'chatHistory';
 const HISTORY_CAP = 50;
+let lastStorageError = '';
+
+const setLastStorageError = (error) => {
+  lastStorageError = String(error?.message || error || '').trim();
+};
+
+const clearLastStorageError = () => {
+  lastStorageError = '';
+};
+
+const isStorageQuotaError = (value) => /quota|QUOTA_BYTES|MAX_WRITE_OPERATIONS|MAX_ITEMS/i.test(String(value || ''));
 
 /** Returns prompts array from storage or an empty list when unavailable. */
 const getPrompts = async () => {
   try {
     const state = await chrome.storage.local.get([PROMPTS_KEY]);
+    clearLastStorageError();
     return Array.isArray(state[PROMPTS_KEY]) ? state[PROMPTS_KEY] : [];
   } catch (error) {
-    console.error('[PromptNest][Store] Failed to read prompts.', error);
+    setLastStorageError(error);
+    console.error('[Promptium][Store] Failed to read prompts.', error);
     return [];
   }
 };
@@ -37,9 +51,11 @@ const savePrompt = async ({ title, text, tags = [], category = null, embedding =
 
     const nextPrompts = [nextPrompt, ...prompts];
     await chrome.storage.local.set({ [PROMPTS_KEY]: nextPrompts });
+    clearLastStorageError();
     return nextPrompt;
   } catch (error) {
-    console.error('[PromptNest][Store] Failed to save prompt.', error);
+    setLastStorageError(error);
+    console.error('[Promptium][Store] Failed to save prompt.', error);
     return false;
   }
 };
@@ -70,9 +86,11 @@ const updatePrompt = async (id, updates) => {
 
     prompts[index] = patched;
     await chrome.storage.local.set({ [PROMPTS_KEY]: prompts });
+    clearLastStorageError();
     return patched;
   } catch (error) {
-    console.error('[PromptNest][Store] Failed to update prompt.', error);
+    setLastStorageError(error);
+    console.error('[Promptium][Store] Failed to update prompt.', error);
     return false;
   }
 };
@@ -83,9 +101,11 @@ const deletePrompt = async (id) => {
     const prompts = await getPrompts();
     const nextPrompts = prompts.filter((item) => item.id !== id);
     await chrome.storage.local.set({ [PROMPTS_KEY]: nextPrompts });
+    clearLastStorageError();
     return true;
   } catch (error) {
-    console.error('[PromptNest][Store] Failed to delete prompt.', error);
+    setLastStorageError(error);
+    console.error('[Promptium][Store] Failed to delete prompt.', error);
     return false;
   }
 };
@@ -94,9 +114,11 @@ const deletePrompt = async (id) => {
 const getChatHistory = async () => {
   try {
     const state = await chrome.storage.local.get([HISTORY_KEY]);
+    clearLastStorageError();
     return Array.isArray(state[HISTORY_KEY]) ? state[HISTORY_KEY] : [];
   } catch (error) {
-    console.error('[PromptNest][Store] Failed to read chat history.', error);
+    setLastStorageError(error);
+    console.error('[Promptium][Store] Failed to read chat history.', error);
     return [];
   }
 };
@@ -122,9 +144,11 @@ const saveChatToHistory = async (chat) => {
     }
 
     await chrome.storage.local.set({ [HISTORY_KEY]: nextHistory });
+    clearLastStorageError();
     return nextEntry;
   } catch (error) {
-    console.error('[PromptNest][Store] Failed to save chat history.', error);
+    setLastStorageError(error);
+    console.error('[Promptium][Store] Failed to save chat history.', error);
     return false;
   }
 };
@@ -135,9 +159,11 @@ const deleteChatFromHistory = async (id) => {
     const history = await getChatHistory();
     const nextHistory = history.filter((item) => item.id !== id);
     await chrome.storage.local.set({ [HISTORY_KEY]: nextHistory });
+    clearLastStorageError();
     return true;
   } catch (error) {
-    console.error('[PromptNest][Store] Failed to delete chat history entry.', error);
+    setLastStorageError(error);
+    console.error('[Promptium][Store] Failed to delete chat history entry.', error);
     return false;
   }
 };
@@ -149,13 +175,18 @@ const Store = {
   deletePrompt,
   getChatHistory,
   saveChatToHistory,
-  deleteChatFromHistory
+  deleteChatFromHistory,
+  getLastError: () => lastStorageError,
+  isQuotaError: isStorageQuotaError
 };
 
 if (typeof window !== 'undefined') {
+  Object.assign(window, Store);
   window.Store = Store;
 }
 
 if (typeof self !== 'undefined') {
   self.Store = Store;
 }
+
+})();

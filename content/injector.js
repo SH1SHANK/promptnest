@@ -1,3 +1,4 @@
+(() => {
 /**
  * File: content/injector.js
  * Purpose: Injects prompt text into platform-specific chat composers.
@@ -15,16 +16,19 @@ const dispatchInput = async (element) => {
   element.dispatchEvent(new Event('input', { bubbles: true }));
 };
 
-/** Sets a React-managed textarea value through the native setter API. */
+/** Sets a React-managed input value through the native setter API. */
 const injectIntoReactTextarea = async (textarea, text) => {
-  if (!(textarea instanceof HTMLTextAreaElement)) {
+  if (!textarea) {
     return false;
   }
 
-  const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+  const proto = textarea instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : Element.prototype;
+  const descriptor = Object.getOwnPropertyDescriptor(proto, 'value') || Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
 
   if (descriptor && typeof descriptor.set === 'function') {
     descriptor.set.call(textarea, text);
+  } else if (textarea.hasAttribute('contenteditable')) {
+    textarea.textContent = text;
   } else {
     textarea.value = text;
   }
@@ -35,7 +39,8 @@ const injectIntoReactTextarea = async (textarea, text) => {
 
 /** Uses legacy execCommand editing flow for contenteditable chat composers. */
 const injectIntoEditable = async (editable, text) => {
-  if (!editable || editable.getAttribute('contenteditable') !== 'true') {
+  const isEditable = editable && (editable.getAttribute('contenteditable') === 'true' || editable.getAttribute('contenteditable') === 'plaintext-only');
+  if (!isEditable) {
     return false;
   }
 
@@ -80,12 +85,24 @@ const inject = async (text, platform = null) => {
       return false;
     }
 
-    if (reactPlatforms.includes(resolvedPlatform)) {
-      return injectIntoReactTextarea(input, text);
+    // For React platforms, sometimes they still use a normal contenteditable but have React state tied to it.
+    // So we'll try the normal contenteditable flow first for modern ChatGPT if it's not a textarea.
+    const isEditable = input.getAttribute('contenteditable') === 'true' || input.getAttribute('contenteditable') === 'plaintext-only';
+
+    if (isEditable) {
+      if (reactPlatforms.includes(resolvedPlatform)) {
+         // ChatGPT requires both inner content setting AND input events
+         input.focus();
+         document.execCommand('selectAll');
+         document.execCommand('insertText', false, text);
+         await dispatchInput(input);
+         return true;
+      }
+      return injectIntoEditable(input, text);
     }
 
-    if (input.getAttribute('contenteditable') === 'true') {
-      return injectIntoEditable(input, text);
+    if (reactPlatforms.includes(resolvedPlatform) && input instanceof HTMLTextAreaElement) {
+      return injectIntoReactTextarea(input, text);
     }
 
     if (input instanceof HTMLTextAreaElement) {
@@ -94,7 +111,7 @@ const inject = async (text, platform = null) => {
 
     return false;
   } catch (error) {
-    console.error('[PromptNest][Injector] Failed to inject prompt.', error);
+    console.error('[Promptium][Injector] Failed to inject prompt.', error);
     return false;
   }
 };
@@ -106,3 +123,5 @@ const Injector = {
 if (typeof window !== 'undefined') {
   window.Injector = Injector;
 }
+
+})();

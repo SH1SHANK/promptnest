@@ -1,6 +1,7 @@
+(() => {
 /**
  * File: content/toolbar.js
- * Purpose: Injects and manages the PromptNest floating action button, save modal, and quick actions.
+ * Purpose: Injects and manages the Promptium floating action button, save modal, and quick actions.
  * Communicates with: utils/platform.js, utils/storage.js, content/scraper.js, content/content.js, content/injector.js.
  */
 
@@ -11,6 +12,8 @@ let lastUrl = window.location.href;
 let pendingPromptText = '';
 let reinjectDebounceTimer = null;
 let isFabMenuOpen = false;
+const SIDEPANEL_PAYLOAD_KEY = 'promptiumSidePanelPayload';
+const IMPROVE_PAYLOAD_KEY = 'promptiumImprovePayload';
 
 /** Returns the active input element for a platform based on selector config. */
 const getInputElement = async (platform) => {
@@ -182,7 +185,12 @@ const confirmSavePrompt = async () => {
   const saved = await window.Store.savePrompt({ title, text: pendingPromptText, tags });
 
   if (!saved) {
-    await showNotification('Failed to save prompt. Try again.');
+    const storageError = window.Store?.getLastError?.() || '';
+    if (window.Store?.isQuotaError?.(storageError)) {
+      await showNotification('Storage quota exceeded. Delete older prompts/history, then try again.');
+    } else {
+      await showNotification('Failed to save prompt. Try again.');
+    }
     return;
   }
 
@@ -321,8 +329,17 @@ const onExportClick = async (platform) => {
       }
     }
 
-    // 2. If no explicit selection, fallback to exporting the entire conversation
+    // 2. If no explicit selection has been made, trigger the selection UI with all checked
     if (messages.length === 0) {
+      if (typeof window.__PN?.SidePanelExport?.activateSelectionModeAll === 'function') {
+        const activated = window.__PN.SidePanelExport.activateSelectionModeAll();
+        if (activated) {
+          // The user is now in selection mode; they must click Export Selected in the FAB.
+          return;
+        }
+      }
+      
+      // Fallback: If activateSelectionModeAll failed or isn't there, scrape everything
       messages = await window.Scraper.scrape(platform);
     }
 
@@ -340,17 +357,17 @@ const onExportClick = async (platform) => {
       messages
     };
 
-    await chrome.storage.local.set({ pnSidePanelPayload: payload });
+    await chrome.storage.local.set({ [SIDEPANEL_PAYLOAD_KEY]: payload });
 
     // Ask background to open side panel and navigate to export view
     chrome.runtime.sendMessage({ action: 'openExport' }, (response) => {
       if (chrome.runtime.lastError) {
-        console.warn('[PromptNest] Could not open export panel:', chrome.runtime.lastError.message);
+        console.warn('[Promptium] Could not open export panel:', chrome.runtime.lastError.message);
         showNotification('Could not open export panel. Try clicking the extension icon.').catch(console.error);
       }
     });
   } catch (error) {
-    console.error('[PromptNest] Export flow failed:', error);
+    console.error('[Promptium] Export flow failed:', error);
     await showNotification('Export failed. Try again.');
   }
 };
@@ -359,7 +376,7 @@ const onExportClick = async (platform) => {
 const onLibraryClick = () => {
   chrome.runtime.sendMessage({ action: 'openSidePanel' }, () => {
     if (chrome.runtime.lastError) {
-      showNotification('Open PromptNest from the extension icon.').catch(console.error);
+      showNotification('Open Promptium from the extension icon.').catch(console.error);
     }
   });
 };
@@ -374,27 +391,39 @@ const onImprovePromptClick = async (platform) => {
     return;
   }
 
-  showNotification('Improving prompt...').catch(console.error);
+  showNotification('Opening improve prompt...').catch(console.error);
 
   try {
-    const response = await window.AIBridge?.improvePrompt(text, [], 'general');
-    if (response?.text) {
-      if (input.value !== undefined) {
-        input.value = response.text;
-      } else {
-        input.textContent = response.text;
+    await chrome.storage.local.set({
+      [IMPROVE_PAYLOAD_KEY]: {
+        text,
+        platform: String(platform || ''),
+        createdAt: new Date().toISOString()
       }
-      // Dispatch input event so the React/Vue frameworks notice the change
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      await showNotification('Prompt improved ✨');
-    } else {
-      await showNotification('Could not improve prompt.');
-    }
+    });
+    chrome.runtime.sendMessage({ action: 'openSidePanel' });
   } catch (error) {
-    console.error('[PromptNest] Improve fail:', error);
-    await showNotification('Failed to improve prompt.');
+    console.error('[Promptium] Improve trigger fail:', error);
+    await showNotification('Failed to open improve modal.');
   }
 };
+
+// Listen for the improved prompt coming back from the side panel
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.action === 'APPLY_IMPROVED_PROMPT' && msg.text) {
+    getInputElement(null).then(input => {
+      if (input) {
+        if (input.value !== undefined) {
+          input.value = msg.text;
+        } else {
+          input.textContent = msg.text;
+        }
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        showNotification('Prompt applied ✨');
+      }
+    });
+  }
+});
 
 /** Routes FAB action clicks to prompt save, export dialog, library guidance, or improvement. */
 const handleFabAction = (platform, action) => {
@@ -418,7 +447,7 @@ const handleFabAction = (platform, action) => {
   }
 };
 
-/** Builds the floating action button root markup for PromptNest actions. */
+/** Builds the floating action button root markup for Promptium actions. */
 const createToolbar = async () => {
   const root = document.createElement('div');
   root.id = 'pn-fab-root';
@@ -441,7 +470,7 @@ const createToolbar = async () => {
         <span class="pn-fab-label">Library</span>
       </button>
     </div>
-    <button id="pn-fab-trigger" type="button" aria-label="PromptNest Actions">
+    <button id="pn-fab-trigger" type="button" aria-label="Promptium Actions">
       <svg class="pn-fab-logo" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="12" y1="5" x2="12" y2="19"></line>
         <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -564,3 +593,5 @@ const Toolbar = {
 if (typeof window !== 'undefined') {
   window.Toolbar = Toolbar;
 }
+
+})();
