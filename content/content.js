@@ -322,7 +322,7 @@ const openSidePanelWithAllMessages = () => {
   return response;
 };
 
-/** Creates the floating export bar once and wires click handling for side panel open. */
+/** Creates the floating selection bar once and wires all action handlers. */
 const ensureSelectionFab = async () => {
   if (document.getElementById('pn-selection-fab')) {
     return;
@@ -332,13 +332,18 @@ const ensureSelectionFab = async () => {
   root.id = 'pn-selection-fab';
   root.className = 'pn-selection-fab pn-hidden';
   root.innerHTML = `
-    <p id="pn-selection-fab-count" class="pn-selection-fab__count">0 selected</p>
-    <button id="pn-selection-fab-trigger" type="button" class="pn-selection-fab__button">Export Selected</button>
+    <p id="pn-selection-fab-count" class="pn-selection-fab__count"><strong>0</strong> of 0</p>
+    <span class="pn-selection-fab__divider"></span>
+    <button id="pn-fab-select-all" class="pn-selection-fab__btn pn-selection-fab__btn--ghost" type="button">Select All</button>
+    <button id="pn-fab-deselect" class="pn-selection-fab__btn pn-selection-fab__btn--ghost" type="button">Deselect</button>
+    <button id="pn-selection-fab-trigger" class="pn-selection-fab__btn pn-selection-fab__btn--primary" type="button">Export</button>
+    <button id="pn-fab-dismiss" class="pn-selection-fab__close" type="button" aria-label="Dismiss selection">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
   `;
 
-  const trigger = root.querySelector('#pn-selection-fab-trigger');
-
-  trigger?.addEventListener('click', (event) => {
+  // Export Selected
+  root.querySelector('#pn-selection-fab-trigger')?.addEventListener('click', (event) => {
     event.stopPropagation();
     try {
       chrome.runtime.sendMessage({ action: 'OPEN_SIDEPANEL' });
@@ -348,12 +353,45 @@ const ensureSelectionFab = async () => {
     }
   });
 
+  // Select All
+  root.querySelector('#pn-fab-select-all')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    exportSelectionState.selectedIds = new Set(exportSelectionState.messageOrder);
+    document.querySelectorAll('.pn-inline-check').forEach((cb) => {
+      if (cb instanceof HTMLInputElement) cb.checked = true;
+    });
+    document.querySelectorAll('.pn-inline-select').forEach((el) => el.classList.add('pn-checked'));
+    void updateSelectionFab();
+  });
+
+  // Deselect All
+  root.querySelector('#pn-fab-deselect')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    exportSelectionState.selectedIds.clear();
+    document.querySelectorAll('.pn-inline-check').forEach((cb) => {
+      if (cb instanceof HTMLInputElement) cb.checked = false;
+    });
+    document.querySelectorAll('.pn-inline-select').forEach((el) => el.classList.remove('pn-checked'));
+    void updateSelectionFab();
+  });
+
+  // Dismiss / Close
+  root.querySelector('#pn-fab-dismiss')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    exportSelectionState.selectedIds.clear();
+    document.querySelectorAll('.pn-inline-check').forEach((cb) => {
+      if (cb instanceof HTMLInputElement) cb.checked = false;
+    });
+    document.querySelectorAll('.pn-inline-select').forEach((el) => el.classList.remove('pn-checked'));
+    root.classList.add('pn-hidden');
+  });
+
   if (document.body) {
     document.body.appendChild(root);
   }
 };
 
-/** Syncs floating export bar visibility and count label with selection state. */
+/** Syncs floating selection bar visibility and count label with selection state. */
 const updateSelectionFab = async () => {
   await ensureSelectionFab();
   const root = document.getElementById('pn-selection-fab');
@@ -365,7 +403,7 @@ const updateSelectionFab = async () => {
 
   const selectedCount = exportSelectionState.selectedIds.size;
   const totalCount = exportSelectionState.messageOrder.length;
-  count.textContent = `${selectedCount} selected of ${totalCount}`;
+  count.innerHTML = `<strong>${selectedCount}</strong> of ${totalCount}`;
   root.classList.toggle('pn-hidden', selectedCount === 0);
 };
 

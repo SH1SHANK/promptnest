@@ -22,7 +22,7 @@
       icon: '⌘',
       headline: 'Never lose a great prompt',
       subheadline: 'Save once. Inject anywhere.',
-      body: 'Hit Save Prompt on any LLM. Your library syncs across ChatGPT, Claude, Gemini, Perplexity, and Copilot. One-click inject or copy.',
+      body: 'Hit Save Prompt on any LLM. Your library syncs across ChatGPT, Claude, Gemini, Perplexity, and Copilot. Plus, explore 100+ curated templates to get you started instantly.',
       accent: '#2dd4bf'
     },
     {

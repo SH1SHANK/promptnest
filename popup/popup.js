@@ -53,11 +53,20 @@ const updateTabIndicator = async () => {
 
 /** Renders one prompt card with inject, copy, and delete actions. */
 const createPromptCard = async (prompt, activeFilter, canInject) => {
+  const isTemplate = !!prompt.isTemplate;
   const card = document.createElement('article');
-  card.className = 'pn-prompt-card';
+  card.className = 'pn-prompt-card' + (isTemplate ? ' pn-prompt-card--template' : '');
+
+  // Template badge
+  if (isTemplate) {
+    const badge = document.createElement('div');
+    badge.className = 'pn-template-badge';
+    badge.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>TEMPLATE${prompt.category ? ' • ' + prompt.category : ''}`;
+    card.appendChild(badge);
+  }
 
   // Semantic relevance badge (if present)
-  if (typeof prompt._semanticScore === 'number') {
+  if (!isTemplate && typeof prompt._semanticScore === 'number') {
     const relevance = document.createElement('div');
     relevance.className = 'pn-relevance-badge';
     relevance.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>${(prompt._semanticScore * 100).toFixed(0)}%`;
@@ -75,7 +84,9 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
   meta.className = 'pn-card-meta pn-card-meta--subtle';
   const charCount = (prompt.text || '').length;
   const createdLabel = prompt.createdAt ? formatRelativeTime(prompt.createdAt) : '';
-  meta.textContent = `${charCount} chars${createdLabel ? ` • ${createdLabel}` : ''}`;
+  meta.textContent = isTemplate
+    ? `${charCount} chars • ${prompt.category || 'General'}`
+    : `${charCount} chars${createdLabel ? ` • ${createdLabel}` : ''}`;
   card.appendChild(meta);
 
   // Text with clamp
@@ -159,37 +170,65 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
     })();
   });
 
-  // Improve button
-  const improveButton = document.createElement('button');
-  improveButton.className = 'pn-btn pn-btn--ghost pn-btn-icon-label';
-  improveButton.type = 'button';
-  improveButton.title = 'Improve prompt (Side Panel)';
-  improveButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#a49aff"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>Improve`;
-  improveButton.addEventListener('click', () => {
-    // Navigate to the sidepanel URL (can open in a new tab if sidepanel isn't open)
-    window.open(chrome.runtime.getURL('sidepanel/sidepanel.html'), '_blank');
-  });
+  if (isTemplate) {
+    // Save to My Prompts button (templates only)
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'pn-btn pn-btn--primary pn-btn-icon-label pn-ml-auto';
+    saveBtn.type = 'button';
+    saveBtn.title = 'Save this template to your prompt library';
+    saveBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>Save to My Prompts`;
+    saveBtn.addEventListener('click', () => {
+      void (async () => {
+        const saved = await window.Store.savePrompt({
+          title: prompt.title,
+          text: prompt.text,
+          tags: [...(prompt.tags || [])]
+        });
+        if (saved) {
+          saveBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>Saved!`;
+          saveBtn.disabled = true;
+          await showToast('Template saved to your library!');
+        } else {
+          await showToast('Failed to save template.');
+        }
+      })();
+    });
+    actions.appendChild(injectButton);
+    actions.appendChild(copyButton);
+    actions.appendChild(saveBtn);
+  } else {
+    // Improve button (user prompts only)
+    const improveButton = document.createElement('button');
+    improveButton.className = 'pn-btn pn-btn--ghost pn-btn-icon-label';
+    improveButton.type = 'button';
+    improveButton.title = 'Improve prompt (Side Panel)';
+    improveButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#a49aff"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>Improve`;
+    improveButton.addEventListener('click', () => {
+      window.open(chrome.runtime.getURL('sidepanel/sidepanel.html'), '_blank');
+    });
 
-  // Delete button
-  const deleteButton = document.createElement('button');
-  deleteButton.className = 'pn-btn pn-btn-danger pn-btn-icon-label pn-ml-auto';
-  deleteButton.type = 'button';
-  deleteButton.title = 'Delete prompt';
-  deleteButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
-  deleteButton.addEventListener('click', () => {
-    void (async () => {
-      const deleted = await window.Store.deletePrompt(prompt.id);
-      if (!deleted) {
-        await showToast('Failed to delete prompt.');
-        return;
-      }
-      await renderPrompts(activeFilter);
-    })();
-  });
+    // Delete button (user prompts only)
+    const deleteButton = document.createElement('button');
+    deleteButton.className = 'pn-btn pn-btn-danger pn-btn-icon-label pn-ml-auto';
+    deleteButton.type = 'button';
+    deleteButton.title = 'Delete prompt';
+    deleteButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+    deleteButton.addEventListener('click', () => {
+      void (async () => {
+        const deleted = await window.Store.deletePrompt(prompt.id);
+        if (!deleted) {
+          await showToast('Failed to delete prompt.');
+          return;
+        }
+        await renderPrompts(activeFilter);
+      })();
+    });
+    actions.appendChild(injectButton);
+    actions.appendChild(copyButton);
+    actions.appendChild(improveButton);
+    actions.appendChild(deleteButton);
+  }
 
-  actions.appendChild(injectButton);
-  actions.appendChild(copyButton);
-  actions.appendChild(deleteButton);
   card.appendChild(actions);
   return card;
 };
@@ -295,23 +334,60 @@ const renderPrompts = async (filter = '') => {
   const prompts = await window.Store.getPrompts();
   const filtered = await filterPrompts(filter, prompts);
   const tabContext = await getActiveTabContext();
+  const filterStr = String(filter || '').trim().toLowerCase();
 
   container.innerHTML = '';
 
-  if (!prompts.length) {
+  // -- User prompts --
+  if (filtered.length) {
+    for (const prompt of filtered) {
+      container.appendChild(await createPromptCard(prompt, filterStr, tabContext.supported));
+    }
+  } else if (prompts.length && filterStr) {
+    container.appendChild(await createEmptyState('No saved prompts match your search.'));
+  } else if (!prompts.length) {
     container.appendChild(
       await createEmptyState('No prompts saved yet. Use the toolbar on any LLM to save your first prompt.')
     );
-    return;
   }
 
-  if (!filtered.length) {
-    container.appendChild(await createEmptyState('No prompts found for your current search.'));
-    return;
-  }
+  // -- Templates section --
+  if (window.PromptTemplates) {
+    const templates = window.PromptTemplates.getTemplates(filterStr);
 
-  for (const prompt of filtered) {
-    container.appendChild(await createPromptCard(prompt, String(filter || '').trim().toLowerCase(), tabContext.supported));
+    if (templates.length) {
+      // Section header
+      const section = document.createElement('div');
+      section.className = 'pn-templates-section';
+
+      const header = document.createElement('button');
+      header.className = 'pn-templates-header';
+      header.type = 'button';
+      header.innerHTML = `<svg class="pn-templates-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>Templates <span class="pn-templates-count">${templates.length}</span>`;
+
+      const body = document.createElement('div');
+      body.className = 'pn-templates-body';
+
+      // Collapsed by default if user has their own prompts
+      let expanded = !prompts.length;
+      body.style.display = expanded ? 'block' : 'none';
+      if (expanded) header.classList.add('pn-templates-header--open');
+
+      header.addEventListener('click', () => {
+        expanded = !expanded;
+        body.style.display = expanded ? 'block' : 'none';
+        header.classList.toggle('pn-templates-header--open', expanded);
+      });
+
+      section.appendChild(header);
+
+      for (const tpl of templates) {
+        body.appendChild(await createPromptCard(tpl, filterStr, tabContext.supported));
+      }
+
+      section.appendChild(body);
+      container.appendChild(section);
+    }
   }
 };
 

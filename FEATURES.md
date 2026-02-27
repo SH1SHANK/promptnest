@@ -41,7 +41,29 @@ The PromptNest central UI is accessible as both a traditional Extension Popup an
 - Displays metadata including message counts, source platform, and relative time of export.
 - Quick **Export** button to re-export in your chosen format (PDF/JSON/etc) straight from the history view.
 
-## 5. Advanced Export Controls
+## 5. Curated Prompt Templates
+
+PromptNest ships with **100+ expert prompt templates** across 10 categories, so you never have to start from scratch:
+
+| Category | Templates |
+|----------|-----------|
+| **Coding & Dev** | Code review, debugging, refactoring, regex generators |
+| **Engineering & CAD** | SolidWorks/AutoCAD macros, MATLAB, FEA setups |
+| **3D Modeling & Animation** | Blender/Maya scripting, Unreal Blueprints, rigging |
+| **Design & UI/UX** | Figma plugins, wireframing, color palettes, UX critique |
+| **Writing & Content** | Blog posts, professional emails, news summaries |
+| **Academic & Study** | Concept explanations, quiz generation, tutoring |
+| **Career & Business** | Resume bullets, interview prep, salary negotiation |
+| **Productivity** | Meeting agendas, decision matrices, Pomodoro schedules |
+| **Data & Analysis** | SQL queries, Regex parsing, statistical tests |
+| **Daily Life & General** | Meal planners, workout routines, travel itineraries |
+
+- Templates appear in a **collapsible section** below your saved prompts.
+- Each template is marked with a purple **TEMPLATE** badge.
+- **Save to My Prompts**: One click copies a template into your personal library for customization.
+- Templates are fully **searchable** alongside your saved prompts.
+
+## 6. Advanced Export Controls
 
 Export your entire multi-turn chat sessions exactly how you want them:
 - **Formats**: Available in Markdown (`.md`), Plain Text (`.txt`), structured object (`.json`), or rendered Portable Document Format (`.pdf`).
@@ -52,7 +74,7 @@ Export your entire multi-turn chat sessions exactly how you want them:
 - **Direct Clipboard Integration**: A single click copies the entire parsed chat format directly to your system clipboard.
 - **Custom Filenames**: Override auto-generated naming conventions (like `promptnest_chatgpt_2026-02-27.md`) with a name of your choice.
 
-## 6. AI "Improve Prompt"
+## 7. AI "Improve Prompt"
 
 Let an AI system dynamically refine your prompt before you send it:
 - A dedicated **Improve** button opens a full comparison modal showing what changes were made.
@@ -60,9 +82,9 @@ Let an AI system dynamically refine your prompt before you send it:
 - **Styles**: Choose between **General Polish**, **Coding/Tech**, **Study/Summarize**, and **Creative Writing**.
 - **Undo Capability**: A safe "Undo" toast drops in immediately after saving in case you change your mind.
 
-## 7. Modern Clean UI
+## 8. Modern Clean UI
 
-PromptNest uses an ultra-modern aesthetic standard using Tailwind CSS.
+PromptNest uses an ultra-modern aesthetic standard.
 - Completely fully-styled **Dark Mode**.
 - Smooth CSS animations, skeleton loaders, and micro-interactions (e.g., copy confirmations, AI visual badges).
 - Semantic search score chips, mono-spaced data badges, and floating action menus.

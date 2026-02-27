@@ -380,6 +380,81 @@ body.pn-popup::-webkit-scrollbar-thumb:hover {
   width: fit-content;
 }
 
+/* ─── Template badge ─── */
+
+.pn-template-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(168, 85, 247, 0.12);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  color: #c084fc;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  width: fit-content;
+}
+
+.pn-prompt-card--template {
+  border-left: 3px solid rgba(168, 85, 247, 0.5);
+}
+
+/* ─── Templates section ─── */
+
+.pn-templates-section {
+  margin-top: 16px;
+}
+
+.pn-templates-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(168, 85, 247, 0.06);
+  color: #c084fc;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.pn-templates-header:hover {
+  background: rgba(168, 85, 247, 0.12);
+}
+
+.pn-templates-chevron {
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.pn-templates-header--open .pn-templates-chevron {
+  transform: rotate(180deg);
+}
+
+.pn-templates-count {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(168, 85, 247, 0.15);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.pn-templates-body {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .pn-btn {
   display: inline-flex;
   align-items: center;

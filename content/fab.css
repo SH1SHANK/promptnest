@@ -1,5 +1,7 @@
 /* File: content/fab.css | Naming convention: all style classes use the pn- prefix to avoid collisions. */
 
+/* ─── FAB Root ─── */
+
 #pn-fab-root {
   position: fixed;
   bottom: 24px;
@@ -10,6 +12,8 @@
   align-items: flex-end;
   gap: 12px;
 }
+
+/* ─── FAB Trigger Button ─── */
 
 #pn-fab-trigger {
   width: 48px;
@@ -41,9 +45,9 @@
 }
 
 #pn-fab-trigger.open {
-  background: rgba(45, 45, 50, 0.9);
+  background: rgba(24, 24, 27, 0.95);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  border-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(139, 124, 246, 0.3);
 }
 
 #pn-fab-trigger.open .pn-fab-logo {
@@ -51,11 +55,13 @@
   stroke: #ececf1;
 }
 
+/* ─── FAB Menu ─── */
+
 .pn-fab-menu {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 10px;
+  gap: 6px;
   margin-bottom: 4px;
 }
 
@@ -67,30 +73,41 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(24, 24, 28, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 8px 14px;
+  background: rgba(24, 24, 27, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 9px 14px;
   cursor: pointer;
-  color: #ececf1;
+  color: #d4d4d8;
   font-family: 'Inter', -apple-system, sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   white-space: nowrap;
   opacity: 0;
-  transform: translateY(12px) scale(0.96);
-  animation: pn-fab-action-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateY(10px) scale(0.97);
+  animation: pn-fab-action-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  transition: all 0.18s ease;
+  border-left: 2px solid transparent;
 }
 
 .pn-fab-action:hover {
-  background: rgba(36, 36, 43, 0.85);
-  border-color: rgba(139, 124, 246, 0.4);
-  transform: scale(1.02);
+  background: rgba(30, 30, 35, 0.95);
+  border-left-color: #8b7cf6;
   color: #ffffff;
+}
+
+.pn-fab-action:active {
+  transform: scale(0.98);
+}
+
+/* Divider between primary and secondary actions */
+.pn-fab-action[data-action="improve-prompt"] {
+  margin-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 10px;
 }
 
 .pn-fab-icon {
@@ -98,15 +115,11 @@
   align-items: center;
   justify-content: center;
   color: #a49aff;
-  transition: color 0.2s ease;
+  transition: color 0.18s ease;
 }
 
 .pn-fab-action:hover .pn-fab-icon {
   color: #c4bdff;
-}
-
-.pn-fab-action:active {
-  transform: scale(0.98);
 }
 
 @keyframes pn-fab-action-in {
@@ -116,12 +129,7 @@
   }
 }
 
-@media (max-width: 640px) {
-  #pn-fab-root {
-    bottom: 20px;
-    right: 20px;
-  }
-}
+/* ─── Inline Message Checkmarks (left gutter, subtle) ─── */
 
 .pn-selectable-message--relative {
   position: relative !important;
@@ -129,30 +137,42 @@
 
 .pn-inline-select {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 10px;
+  left: -6px;
   z-index: 4;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: rgba(15, 15, 18, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.26);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: rgba(24, 24, 27, 0.7);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
   opacity: 0;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  transform: scale(0.95);
+  transition: opacity 0.2s ease, transform 0.2s ease, border-color 0.18s ease, background 0.18s ease;
+  transform: scale(0.9) translateX(-4px);
 }
 
-.pn-selectable-message--relative:hover .pn-inline-select,
+/* Show on hover — very subtle slide-in */
+.pn-selectable-message--relative:hover .pn-inline-select {
+  opacity: 0.55;
+  transform: scale(1) translateX(0);
+}
+
+.pn-selectable-message--relative:hover .pn-inline-select:hover {
+  opacity: 1;
+  border-color: rgba(139, 124, 246, 0.5);
+}
+
+/* When checked: always visible */
 .pn-inline-select.pn-checked {
   opacity: 1;
-  transform: scale(1);
+  transform: scale(1) translateX(0);
+  background: rgba(139, 124, 246, 0.15);
+  border-color: #8b7cf6;
 }
 
 .pn-inline-check {
@@ -162,37 +182,40 @@
 }
 
 .pn-inline-mark {
-  width: 11px;
-  height: 11px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .pn-inline-check:checked + .pn-inline-mark {
   background: #8b7cf6;
   border-color: #8b7cf6;
-  transform: scale(1.04);
+  box-shadow: 0 0 6px rgba(139, 124, 246, 0.4);
 }
+
+/* ─── Selection Bar (bottom, sidebar-themed) ─── */
 
 #pn-selection-fab {
   position: fixed;
   left: 50%;
-  bottom: 22px;
-  transform: translateX(-50%);
+  bottom: 20px;
+  transform: translateX(-50%) translateY(0);
   z-index: 999997;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  background: rgba(12, 12, 15, 0.94);
-  color: #f0f0f4;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 8px 10px 8px 14px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  animation: pn-selection-fab-in 0.18s ease-out;
+  gap: 8px;
+  background: rgba(24, 24, 27, 0.95);
+  color: #e4e4e7;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 6px 8px 6px 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(139, 124, 246, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font-family: 'Inter', -apple-system, sans-serif;
+  animation: pn-selection-bar-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 #pn-selection-fab.pn-hidden {
@@ -201,49 +224,104 @@
 
 .pn-selection-fab__count {
   margin: 0;
-  font-family: 'Outfit', sans-serif;
   font-size: 12px;
   font-weight: 500;
-  color: #d7d7df;
+  color: #a1a1aa;
+  white-space: nowrap;
 }
 
-.pn-selection-fab__button {
+.pn-selection-fab__count strong {
+  color: #e4e4e7;
+  font-weight: 600;
+}
+
+/* Pill buttons inside the selection bar */
+.pn-selection-fab__btn {
   border: none;
-  border-radius: 999px;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+  white-space: nowrap;
+}
+
+.pn-selection-fab__btn:active {
+  transform: scale(0.96);
+}
+
+/* Primary: Export */
+.pn-selection-fab__btn--primary {
   background: linear-gradient(135deg, #8b7cf6, #6f61df);
   color: #ffffff;
-  padding: 8px 14px;
-  font-family: 'Outfit', sans-serif;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  box-shadow: 0 4px 14px rgba(111, 97, 223, 0.35);
+}
+
+.pn-selection-fab__btn--primary:hover {
+  box-shadow: 0 6px 18px rgba(111, 97, 223, 0.5);
+}
+
+/* Ghost: Select All / Deselect */
+.pn-selection-fab__btn--ghost {
+  background: rgba(255, 255, 255, 0.06);
+  color: #a1a1aa;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pn-selection-fab__btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e4e4e7;
+}
+
+/* Close / dismiss */
+.pn-selection-fab__close {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  background: rgba(255, 255, 255, 0.04);
+  color: #71717a;
   cursor: pointer;
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
-  box-shadow: 0 8px 22px rgba(111, 97, 223, 0.38);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+  margin-left: 2px;
 }
 
-.pn-selection-fab__button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(111, 97, 223, 0.5);
+.pn-selection-fab__close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e4e4e7;
 }
 
-.pn-selection-fab__button:active {
-  transform: translateY(0);
+/* Divider between count and buttons */
+.pn-selection-fab__divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
 }
 
-@keyframes pn-selection-fab-in {
+@keyframes pn-selection-bar-in {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(8px);
+    transform: translateX(-50%) translateY(12px) scale(0.96);
   }
-
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(-50%) translateY(0) scale(1);
   }
 }
 
 @media (max-width: 640px) {
+  #pn-fab-root {
+    bottom: 20px;
+    right: 20px;
+  }
+
   #pn-selection-fab {
     bottom: 14px;
     max-width: calc(100vw - 14px);

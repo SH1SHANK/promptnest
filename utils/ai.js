@@ -5,13 +5,21 @@
  */
 
 const TAG_RULES = [
-  { tag: 'coding', keywords: ['code', 'javascript', 'typescript', 'python', 'bug', 'debug', 'api', 'function'] },
-  { tag: 'study', keywords: ['study', 'learn', 'revision', 'notes', 'exam', 'practice', 'flashcard'] },
-  { tag: 'career', keywords: ['career', 'resume', 'cv', 'job', 'interview', 'promotion', 'manager'] },
-  { tag: 'creative', keywords: ['story', 'poem', 'creative', 'design', 'brainstorm', 'idea', 'name'] },
-  { tag: 'debugging', keywords: ['error', 'exception', 'trace', 'stack', 'fix', 'regression', 'issue'] },
-  { tag: 'explanation', keywords: ['explain', 'summary', 'summarize', 'why', 'how', 'walkthrough'] },
-  { tag: 'interview', keywords: ['interview', 'question', 'behavioral', 'system design', 'leetcode'] }
+  { tag: 'coding', keywords: ['code', 'javascript', 'typescript', 'python', 'bug', 'debug', 'api', 'function', 'react', 'css', 'html', 'docker', 'git', 'regex', 'bash'] },
+  { tag: 'study', keywords: ['study', 'learn', 'revision', 'notes', 'exam', 'practice', 'flashcard', 'quiz', 'tutor', 'syllabus', 'academic'] },
+  { tag: 'career', keywords: ['career', 'resume', 'cv', 'job', 'interview', 'promotion', 'manager', 'salary', 'linkedin', 'networking', 'cover letter'] },
+  { tag: 'creative', keywords: ['story', 'poem', 'creative', 'brainstorm', 'idea', 'name', 'fiction', 'character', 'narrative'] },
+  { tag: 'debugging', keywords: ['error', 'exception', 'trace', 'stack', 'fix', 'regression', 'issue', 'troubleshoot', 'crash'] },
+  { tag: 'explanation', keywords: ['explain', 'summary', 'summarize', 'why', 'how', 'walkthrough', 'describe', 'breakdown'] },
+  { tag: 'interview', keywords: ['interview', 'question', 'behavioral', 'system design', 'leetcode', 'star method'] },
+  { tag: 'engineering', keywords: ['autocad', 'solidworks', 'matlab', 'fusion360', 'fea', 'cad', 'cnc', 'gcode', 'ansys', 'revit', 'pcb', 'arduino', 'pid', 'thermodynamics', 'statics'] },
+  { tag: '3d-modeling', keywords: ['blender', 'maya', 'unity', 'unreal', 'zbrush', 'render', 'texture', 'rigging', 'sculpt', 'mesh', 'pbr', 'substance'] },
+  { tag: 'design', keywords: ['figma', 'ui', 'ux', 'wireframe', 'prototype', 'typography', 'color palette', 'logo', 'icon', 'accessibility', 'midjourney'] },
+  { tag: 'marketing', keywords: ['seo', 'ad copy', 'social media', 'campaign', 'newsletter', 'affiliate', 'gtm', 'product description', 'competitor'] },
+  { tag: 'data', keywords: ['sql', 'pandas', 'excel', 'analysis', 'dataset', 'statistics', 'csv', 'cleaning', 'visualization', 'report'] },
+  { tag: 'writing', keywords: ['blog', 'email', 'draft', 'press release', 'script', 'proofreader', 'copy editing', 'tone', 'youtube'] },
+  { tag: 'daily', keywords: ['news', 'meal', 'recipe', 'workout', 'travel', 'gift', 'budget', 'chore', 'movie', 'book', 'pet'] },
+  { tag: 'productivity', keywords: ['meeting', 'agenda', 'pomodoro', 'eisenhower', 'habit', 'okr', 'retrospective', 'sop', 'decision', 'prioritize'] }
 ];
 
 let aiAvailable = false;
@@ -94,7 +102,7 @@ const normalizeText = (value) => String(value || '')
   .replace(/\s+/g, ' ')
   .trim();
 
-/** Tokenizes normalized text into unique terms. */
+/** Tokenizes normalized text into unique terms (minimum 2 chars). */
 const toTokenSet = (value) => {
   const normalized = normalizeText(value);
 
@@ -102,10 +110,84 @@ const toTokenSet = (value) => {
     return new Set();
   }
 
-  return new Set(normalized.split(' ').filter(Boolean));
+  return new Set(normalized.split(' ').filter(t => t.length >= 2));
 };
 
-/** Filters prompts by basic title/text/tag keyword match. */
+/**
+ * Common synonym clusters for cross-domain search expansion.
+ * Searching any word in a cluster will also match the others.
+ */
+const SYNONYM_CLUSTERS = [
+  ['fix', 'debug', 'error', 'bug', 'issue', 'troubleshoot'],
+  ['code', 'coding', 'programming', 'development', 'script'],
+  ['explain', 'explanation', 'describe', 'walkthrough', 'breakdown'],
+  ['write', 'writing', 'draft', 'compose', 'author'],
+  ['study', 'learn', 'education', 'academic', 'revision'],
+  ['design', 'ui', 'ux', 'layout', 'wireframe', 'mockup'],
+  ['career', 'job', 'resume', 'cv', 'interview', 'hire'],
+  ['make', 'create', 'build', 'generate', 'produce'],
+  ['improve', 'enhance', 'optimize', 'refine', 'polish', 'refactor'],
+  ['test', 'testing', 'unit', 'spec', 'assertion', 'jest', 'pytest'],
+  ['cad', 'autocad', 'solidworks', 'fusion360', 'revit', 'engineering'],
+  ['model', 'modeling', '3d', 'blender', 'maya', 'sculpt', 'mesh'],
+  ['animate', 'animation', 'rig', 'rigging', 'keyframe', 'motion'],
+  ['data', 'analysis', 'analytics', 'dataset', 'statistics', 'report'],
+  ['market', 'marketing', 'seo', 'ad', 'copy', 'campaign', 'social'],
+  ['plan', 'planning', 'schedule', 'agenda', 'organize', 'productivity'],
+  ['food', 'recipe', 'cook', 'cooking', 'meal', 'ingredient'],
+  ['travel', 'trip', 'vacation', 'itinerary', 'destination'],
+  ['email', 'mail', 'message', 'outreach', 'newsletter'],
+  ['sql', 'query', 'database', 'db', 'postgres', 'mysql'],
+];
+
+/** Build a fast token → expanded-tokens lookup from synonym clusters. */
+const _synonymMap = (() => {
+  const map = new Map();
+  for (const cluster of SYNONYM_CLUSTERS) {
+    for (const word of cluster) {
+      const existing = map.get(word) || new Set();
+      for (const syn of cluster) existing.add(syn);
+      map.set(word, existing);
+    }
+  }
+  return map;
+})();
+
+/** Expands a set of query tokens with synonyms. */
+const expandWithSynonyms = (tokens) => {
+  const expanded = new Set(tokens);
+  for (const token of tokens) {
+    const syns = _synonymMap.get(token);
+    if (syns) for (const s of syns) expanded.add(s);
+  }
+  return expanded;
+};
+
+/** Checks if a term appears as a whole word (or word-prefix) in text. */
+const wordBoundaryMatch = (text, term) => {
+  // Quick check first
+  if (!text.includes(term)) return false;
+  // Exact word-boundary regex: \bterm or term as prefix of a word
+  try {
+    const re = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+    return re.test(text);
+  } catch {
+    return text.includes(term);
+  }
+};
+
+/** Checks if any word in text starts with the given prefix. */
+const prefixMatch = (text, prefix) => {
+  if (prefix.length < 3) return false;
+  try {
+    const re = new RegExp(`\\b${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\w*`, 'i');
+    return re.test(text);
+  } catch {
+    return false;
+  }
+};
+
+/** Filters prompts by keyword match (fallback path). */
 const keywordFilter = (query, prompts) => {
   const normalizedQuery = normalizeText(query);
 
@@ -113,58 +195,80 @@ const keywordFilter = (query, prompts) => {
     return Array.isArray(prompts) ? prompts : [];
   }
 
+  const queryTokens = Array.from(toTokenSet(normalizedQuery));
+  const expanded = expandWithSynonyms(queryTokens);
+
   return (Array.isArray(prompts) ? prompts : []).filter((prompt) => {
-    const title = String(prompt?.title || '').toLowerCase();
-    const text = String(prompt?.text || '').toLowerCase();
-    const tags = (prompt?.tags || []).join(' ').toLowerCase();
-    return title.includes(normalizedQuery) || text.includes(normalizedQuery) || tags.includes(normalizedQuery);
+    const haystack = `${prompt?.title || ''} ${prompt?.text || ''} ${(prompt?.tags || []).join(' ')} ${prompt?.category || ''}`.toLowerCase();
+    // Match if the full phrase appears, OR if any expanded token matches as a whole word
+    if (haystack.includes(normalizedQuery)) return true;
+    for (const token of expanded) {
+      if (wordBoundaryMatch(haystack, token)) return true;
+    }
+    return false;
   });
 };
 
-/** Computes deterministic relevance score from token and phrase overlap. */
+/**
+ * Computes a nuanced relevance score incorporating:
+ * - Exact phrase matching (highest weight)
+ * - Word-boundary token matching (prevents "code" matching "unicode")
+ * - Prefix/stem matching ("debug" matches "debugging")
+ * - Synonym expansion ("fix" finds prompts about "debug")
+ * - Field weighting (title > tags > category > text)
+ * - Query-length-aware normalization
+ */
 const scorePrompt = (query, prompt) => {
   const normalizedQuery = normalizeText(query);
-  const title = String(prompt?.title || '').toLowerCase();
-  const text = String(prompt?.text || '').toLowerCase();
-  const tagsText = (prompt?.tags || []).join(' ').toLowerCase();
+  if (!normalizedQuery) return 0;
+
+  const title    = normalizeText(prompt?.title);
+  const text     = normalizeText(prompt?.text);
+  const tagsText = normalizeText((prompt?.tags || []).join(' '));
+  const category = normalizeText(prompt?.category);
   const queryTokens = Array.from(toTokenSet(normalizedQuery));
-  let rawScore = 0;
+  const expandedTokens = expandWithSynonyms(queryTokens);
 
-  if (!normalizedQuery) {
-    return 0;
-  }
+  let score = 0;
 
-  if (title.includes(normalizedQuery)) {
-    rawScore += 4;
-  }
+  // ── Phase 1: Exact phrase matching (very high signal) ──
+  if (title.includes(normalizedQuery))    score += 10;
+  if (tagsText.includes(normalizedQuery)) score += 8;
+  if (category.includes(normalizedQuery)) score += 6;
+  if (text.includes(normalizedQuery))     score += 4;
 
-  if (text.includes(normalizedQuery)) {
-    rawScore += 3;
-  }
-
-  if (tagsText.includes(normalizedQuery)) {
-    rawScore += 3;
-  }
-
+  // ── Phase 2: Word-boundary token matching per field ──
   for (const token of queryTokens) {
-    if (token.length < 2) {
-      continue;
-    }
-
-    if (title.includes(token)) {
-      rawScore += 2;
-    }
-
-    if (text.includes(token)) {
-      rawScore += 1;
-    }
-
-    if (tagsText.includes(token)) {
-      rawScore += 2;
-    }
+    if (token.length < 2) continue;
+    if (wordBoundaryMatch(title, token))    score += 5;
+    if (wordBoundaryMatch(tagsText, token)) score += 4;
+    if (wordBoundaryMatch(category, token)) score += 3;
+    if (wordBoundaryMatch(text, token))     score += 1;
   }
 
-  return Math.max(0, Math.min(1, rawScore / 10));
+  // ── Phase 3: Prefix/stem matching (partial words) ──
+  for (const token of queryTokens) {
+    if (token.length < 3) continue;
+    if (prefixMatch(title, token))    score += 3;
+    if (prefixMatch(tagsText, token)) score += 2;
+    if (prefixMatch(text, token))     score += 0.5;
+  }
+
+  // ── Phase 4: Synonym expansion bonus ──
+  const synonymOnly = new Set([...expandedTokens].filter(t => !queryTokens.includes(t)));
+  for (const syn of synonymOnly) {
+    if (wordBoundaryMatch(title, syn))    score += 2;
+    if (wordBoundaryMatch(tagsText, syn)) score += 2;
+    if (wordBoundaryMatch(text, syn))     score += 0.5;
+  }
+
+  // ── Normalize: scale by query complexity to keep score 0–1 ──
+  const maxPossible = (10 + 8 + 6 + 4)
+    + queryTokens.length * (5 + 4 + 3 + 1)
+    + queryTokens.length * (3 + 2 + 0.5)
+    + synonymOnly.size * (2 + 2 + 0.5);
+
+  return maxPossible > 0 ? Math.max(0, Math.min(1, score / maxPossible)) : 0;
 };
 
 /** Initializes model-free smart features and updates status UI. */

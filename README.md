@@ -15,6 +15,7 @@ PromptNest is a Chrome Extension designed for power users of Large Language Mode
 - **On-Device AI (Transformers.js)**: Runs a local, private neural network right in your browser for lightning-fast **Semantic Search**, **Auto-Tag Suggestions**, and **Duplicate Prompt Detection** without ever sending your prompts to the cloud.
 - **AI Prompt Improvement**: Select a style (Coding, Creative, Study, or General) and let the Gemini API refine and enhance your prompts before you send them.
 - **Smart Management**: Organize your prompts with tags, find exactly what you need with meaning-based search (not just keyword matching), and inject them directly into your active chat window.
+- **100+ Curated Templates**: Ships with a built-in library of expert prompt templates across Engineering & CAD, 3D Modeling, Design, Coding, Writing, Study, Career, Productivity, Data Analysis, and Daily Life — save any template to your personal library with one click.
 
 For a detailed breakdown of all features, refer to the [FEATURES.md](./FEATURES.md) file.
 

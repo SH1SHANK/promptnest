@@ -24,7 +24,8 @@ PromptNest is a Manifest V3 Chrome Extension. The architecture is split into mul
 │   ├── dom-helpers.js      # Extraction utilities for reading messages from chat DOMs
 │   ├── exporter.js         # Chat formatting engine (MD, TXT, JSON, PDF via html2pdf)
 │   ├── platform.js         # Site-specific messaging bridges
-│   └── storage.js          # Abstraction wrapper around chrome.storage.local
+│   ├── storage.js          # Abstraction wrapper around chrome.storage.local
+│   └── templates.js        # 25+ curated prompt templates shipped with PromptNest
 └── manifest.json           # Extension configuration metadata
 ```
 
