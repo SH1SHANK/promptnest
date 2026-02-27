@@ -46,6 +46,9 @@
       ],
       "js": [
         "libs/jspdf.min.js",
+        "utils/constants.js",
+        "utils/dom-helpers.js",
+        "utils/tags.js",
         "utils/platform.js",
         "utils/storage.js",
         "utils/exporter.js",
@@ -64,8 +67,6 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "content/fab.css",
-        "content/toolbar.css",
         "libs/jspdf.min.js",
         "libs/transformers.min.js",
         "models/*"

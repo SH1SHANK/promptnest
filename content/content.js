@@ -10,14 +10,6 @@ if (!window.__PN.PENDING_CONTEXT_KEY) {
   window.__PN.PENDING_CONTEXT_KEY = 'pendingContext';
 }
 
-const PLATFORM_LABELS = {
-  chatgpt: 'ChatGPT',
-  claude: 'Claude',
-  gemini: 'Gemini',
-  perplexity: 'Perplexity',
-  copilot: 'Copilot'
-};
-
 const OPEN_SIDEPANEL_ACTION = 'OPEN_SIDEPANEL';
 const OBSERVER_DEBOUNCE_MS = 140;
 const URL_WATCH_INTERVAL_MS = 1000;

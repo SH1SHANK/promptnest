@@ -16,7 +16,7 @@ const DEFAULT_PREFS = {
 };
 
 /** Returns a safe merged preferences object with normalized values. */
-const normalizePrefs = async (prefs = {}) => {
+const normalizePrefs = (prefs = {}) => {
   const merged = { ...DEFAULT_PREFS, ...(prefs || {}) };
   const numericFontSize = Number(merged.fontSize);
   return {
@@ -32,7 +32,7 @@ const normalizePrefs = async (prefs = {}) => {
 };
 
 /** Builds a safe export chat object from unknown input. */
-const normalizeChat = async (chat) => {
+const normalizeChat = (chat) => {
   const value = chat && typeof chat === 'object' ? chat : {};
   return {
     title: String(value.title || 'PromptNest Chat').trim(),
@@ -43,13 +43,13 @@ const normalizeChat = async (chat) => {
 };
 
 /** Returns a human-readable role label for exported message rows. */
-const formatRole = async (role) => {
+const formatRole = (role) => {
   const safeRole = String(role || 'unknown').trim().toLowerCase();
   return safeRole.charAt(0).toUpperCase() + safeRole.slice(1);
 };
 
 /** Returns a timestamp prefix when enabled by preferences. */
-const buildTimestampPrefix = async (message, prefs) => {
+const buildTimestampPrefix = (message, prefs) => {
   if (!prefs.includeTimestamps) {
     return '';
   }
@@ -65,7 +65,7 @@ const buildTimestampPrefix = async (message, prefs) => {
 };
 
 /** Maps user-facing font selection to an available jsPDF font family. */
-const resolvePdfFont = async (fontStyle) => {
+const resolvePdfFont = (fontStyle) => {
   const normalized = String(fontStyle || '').toLowerCase();
 
   if (normalized.includes('jetbrains')) {
@@ -80,7 +80,7 @@ const resolvePdfFont = async (fontStyle) => {
 };
 
 /** Converts background preference into export-ready hex color and text color values. */
-const resolveBackgroundColors = async (prefs) => {
+const resolveBackgroundColors = (prefs) => {
   const choice = String(prefs.background || 'dark').toLowerCase();
 
   if (choice === 'light') {
@@ -100,7 +100,7 @@ const resolveBackgroundColors = async (prefs) => {
 };
 
 /** Converts a hex color string into RGB tuple values for jsPDF drawing APIs. */
-const hexToRgb = async (hexColor) => {
+const hexToRgb = (hexColor) => {
   const hex = String(hexColor || '#000000').replace('#', '');
 
   if (hex.length === 3) {
@@ -119,7 +119,7 @@ const hexToRgb = async (hexColor) => {
 };
 
 /** Builds a human-readable export filename from platform and date values. */
-const buildFilename = async (chat, extension) => {
+const buildFilename = (chat, extension) => {
   const rawPlatform = String(chat?.platform || 'unknown').toLowerCase();
   const platform = rawPlatform.replace(/[^a-z0-9]+/g, '') || 'unknown';
   const date = new Date().toISOString().slice(0, 10);
@@ -128,8 +128,8 @@ const buildFilename = async (chat, extension) => {
 
 /** Converts chat data to markdown with optional metadata controls from prefs. */
 const toMarkdown = async (chat, prefs = {}) => {
-  const normalizedChat = await normalizeChat(chat);
-  const options = await normalizePrefs(prefs);
+  const normalizedChat = normalizeChat(chat);
+  const options = normalizePrefs(prefs);
   const headerLines = [`# ${normalizedChat.title}`];
 
   if (options.includePlatformLabel) {
@@ -146,8 +146,8 @@ const toMarkdown = async (chat, prefs = {}) => {
 
   for (let index = 0; index < normalizedChat.messages.length; index += 1) {
     const message = normalizedChat.messages[index];
-    const role = await formatRole(message.role);
-    const prefix = await buildTimestampPrefix(message, options);
+    const role = formatRole(message.role);
+    const prefix = buildTimestampPrefix(message, options);
     const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
     const text = String(message.text || '').trim();
     rows.push(`**${messageNumber}${role}:** ${prefix}${text}`);
@@ -159,8 +159,8 @@ const toMarkdown = async (chat, prefs = {}) => {
 
 /** Converts chat data to plain text with optional metadata controls from prefs. */
 const toTXT = async (chat, prefs = {}) => {
-  const normalizedChat = await normalizeChat(chat);
-  const options = await normalizePrefs(prefs);
+  const normalizedChat = normalizeChat(chat);
+  const options = normalizePrefs(prefs);
   const divider = '====================';
   const header = [normalizedChat.title];
 
@@ -178,8 +178,8 @@ const toTXT = async (chat, prefs = {}) => {
 
   for (let index = 0; index < normalizedChat.messages.length; index += 1) {
     const message = normalizedChat.messages[index];
-    const role = await formatRole(message.role);
-    const prefix = await buildTimestampPrefix(message, options);
+    const role = formatRole(message.role);
+    const prefix = buildTimestampPrefix(message, options);
     const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
     const text = String(message.text || '').trim();
     rows.push(`${messageNumber}${role}: ${prefix}${text}`);
@@ -217,8 +217,8 @@ const writePdfLine = async (doc, text, y, pageHeight, margin, maxWidth, lineHeig
 
 /** Converts chat data into a paginated PDF ArrayBuffer using jsPDF with style prefs. */
 const toPDF = async (chat, prefs = {}) => {
-  const normalizedChat = await normalizeChat(chat);
-  const options = await normalizePrefs(prefs);
+  const normalizedChat = normalizeChat(chat);
+  const options = normalizePrefs(prefs);
 
   if (!window.jspdf || !window.jspdf.jsPDF) {
     throw new Error('jsPDF is not loaded in the current context.');
@@ -230,10 +230,10 @@ const toPDF = async (chat, prefs = {}) => {
   const pageWidth = doc.internal.pageSize.getWidth();
   const maxWidth = pageWidth - margin * 2;
   const lineHeight = Math.max(16, Math.round(options.fontSize * 1.35));
-  const fontFamily = await resolvePdfFont(options.fontStyle);
-  const colors = await resolveBackgroundColors(options);
-  const backgroundRgb = await hexToRgb(colors.page);
-  const textRgb = await hexToRgb(colors.text);
+  const fontFamily = resolvePdfFont(options.fontStyle);
+  const colors = resolveBackgroundColors(options);
+  const backgroundRgb = hexToRgb(colors.page);
+  const textRgb = hexToRgb(colors.text);
 
   doc.setFillColor(backgroundRgb[0], backgroundRgb[1], backgroundRgb[2]);
   doc.rect(0, 0, pageWidth, pageHeight, 'F');
@@ -267,8 +267,8 @@ const toPDF = async (chat, prefs = {}) => {
 
   for (let index = 0; index < normalizedChat.messages.length; index += 1) {
     const message = normalizedChat.messages[index];
-    const role = await formatRole(message.role);
-    const prefix = await buildTimestampPrefix(message, options);
+    const role = formatRole(message.role);
+    const prefix = buildTimestampPrefix(message, options);
     const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
     y = await writePdfLine(
       doc,
@@ -286,21 +286,8 @@ const toPDF = async (chat, prefs = {}) => {
   return doc.output('arraybuffer');
 };
 
-/** Downloads textual content as a file via a Blob-backed temporary anchor. */
-const downloadText = async (content, filename, mimeType) => {
-  const blob = new Blob([String(content)], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
-
-/** Downloads binary content as a file via a Blob-backed temporary anchor. */
-const downloadBinary = async (content, filename, mimeType) => {
+/** Downloads content as a file via a Blob-backed temporary anchor. */
+const downloadBlob = (content, filename, mimeType) => {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -319,19 +306,19 @@ const exportChat = async (chat, format = 'md', prefs = {}) => {
 
     if (normalized === 'md' || normalized === 'markdown') {
       const markdown = await toMarkdown(chat, prefs);
-      await downloadText(markdown, await buildFilename(chat, 'md'), 'text/markdown;charset=utf-8');
+      downloadBlob(markdown, buildFilename(chat, 'md'), 'text/markdown;charset=utf-8');
       return { ok: true };
     }
 
     if (normalized === 'txt' || normalized === 'text') {
       const text = await toTXT(chat, prefs);
-      await downloadText(text, await buildFilename(chat, 'txt'), 'text/plain;charset=utf-8');
+      downloadBlob(text, buildFilename(chat, 'txt'), 'text/plain;charset=utf-8');
       return { ok: true };
     }
 
     if (normalized === 'pdf') {
       const pdfData = await toPDF(chat, prefs);
-      await downloadBinary(pdfData, await buildFilename(chat, 'pdf'), 'application/pdf');
+      downloadBlob(pdfData, buildFilename(chat, 'pdf'), 'application/pdf');
       return { ok: true };
     }
 
@@ -341,11 +328,58 @@ const exportChat = async (chat, format = 'md', prefs = {}) => {
   }
 };
 
+/** Converts chat data to a clean structured JSON string for export. */
+const toJSON = async (chat, prefs = {}) => {
+  const normalizedChat = normalizeChat(chat);
+  const options = normalizePrefs(prefs);
+  const output = {
+    title: normalizedChat.title,
+    platform: normalizedChat.platform,
+    exportedAt: new Date().toISOString(),
+    messageCount: normalizedChat.messages.length,
+    messages: normalizedChat.messages.map((message, index) => {
+      const entry = {
+        role: String(message.role || 'unknown').trim(),
+        text: String(message.text || '').trim()
+      };
+      if (options.includeMessageNumbers) entry.number = index + 1;
+      return entry;
+    })
+  };
+  if (!options.includePlatformLabel) delete output.platform;
+  return JSON.stringify(output, null, 2);
+};
+
+/** Converts chat data into clipboard-optimized plain text without dividers. */
+const toClipboardText = async (chat, prefs = {}) => {
+  const normalizedChat = normalizeChat(chat);
+  const options = normalizePrefs(prefs);
+  const lines = [normalizedChat.title];
+
+  if (options.includePlatformLabel) {
+    lines.push(`Platform: ${normalizedChat.platform}`);
+  }
+  lines.push('');
+
+  for (let index = 0; index < normalizedChat.messages.length; index += 1) {
+    const message = normalizedChat.messages[index];
+    const role = formatRole(message.role);
+    const prefix = buildTimestampPrefix(message, options);
+    const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
+    lines.push(`${messageNumber}${role}: ${prefix}${String(message.text || '').trim()}`);
+    lines.push('');
+  }
+
+  return lines.join('\n').trim();
+};
+
 const Exporter = {
   toMarkdown,
   toTXT,
+  toJSON,
   toPDF,
-  downloadText,
+  toClipboardText,
+  downloadBlob,
   exportChat
 };
 

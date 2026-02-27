@@ -14,39 +14,47 @@
       icon: '✦',
       headline: 'Meet PromptNest',
       subheadline: 'Your AI workflow, elevated.',
-      body: 'Save prompts. Export conversations. Search by meaning. All on-device, all private.',
+      body: 'Save prompts. Export conversations. Improve with AI. Search by meaning. All private.',
       accent: '#8b7cf6'
     },
     {
       id: 'prompts',
       icon: '⌘',
       headline: 'Never lose a great prompt',
-      subheadline: 'Save once. Use everywhere.',
-      body: 'Hit Save Prompt on any LLM. Your library syncs across ChatGPT, Claude, Gemini, Perplexity, and Copilot.',
-      accent: '#6ee7b7'
+      subheadline: 'Save once. Inject anywhere.',
+      body: 'Hit Save Prompt on any LLM. Your library syncs across ChatGPT, Claude, Gemini, Perplexity, and Copilot. One-click inject or copy.',
+      accent: '#2dd4bf'
+    },
+    {
+      id: 'improve',
+      icon: '✨',
+      headline: 'AI Prompt Improvement',
+      subheadline: 'Enhance before you send.',
+      body: 'Open the Side Panel to refine your prompts. Choose from Coding, Creative, or Study styles and let Gemini perfect your text instantly.',
+      accent: '#a49aff'
     },
     {
       id: 'export',
       icon: '↑',
       headline: 'Export with intention',
       subheadline: 'Your conversations, your format.',
-      body: 'Select specific messages. Customize fonts, backgrounds, and layout. Export as Markdown, TXT, or PDF — or send directly to another LLM.',
+      body: 'Export multi-turn chats as Markdown, JSON, PDF or Text. Toggle message numbers, timestamps, and copy directly to your clipboard.',
       accent: '#fbbf24'
     },
     {
       id: 'ai',
       icon: '◈',
-      headline: 'AI that understands you',
-      subheadline: 'Search by meaning, not keywords.',
-      body: 'Type "help me study" and find prompts tagged "explain" or "quiz" — even without exact matches. Runs entirely on your device.',
+      headline: 'Search by meaning',
+      subheadline: 'On-device semantic search.',
+      body: 'Type "help me study" and find prompts tagged "quiz" — even without exact matches. The local ML model also auto-suggests tags.',
       accent: '#f472b6'
     },
     {
       id: 'privacy',
       icon: '◉',
-      headline: 'Zero data leaves your device',
-      subheadline: 'No backend. No account. No tracking.',
-      body: 'Every prompt, every export, every AI inference — fully local. Your conversations are yours.',
+      headline: 'Privacy-first architecture',
+      subheadline: 'No backend. No account.',
+      body: 'Every saved prompt, every export, every local search embedding stays fully local on your device. Your conversations are yours.',
       accent: '#34d399'
     },
     {
@@ -62,7 +70,7 @@
 
   const state = {
     currentCard: 0,
-    totalCards: 6,
+    totalCards: 7,
     userName: '',
     userContext: '',
     touchStartX: 0,

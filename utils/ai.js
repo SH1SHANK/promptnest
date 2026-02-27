@@ -4,7 +4,6 @@
  * Communicates with: popup/popup.js, sidepanel/sidepanel.js, and chrome.storage.local.
  */
 
-const LABEL_CANDIDATES = ['coding', 'study', 'career', 'creative', 'general', 'debugging', 'explanation', 'interview'];
 const TAG_RULES = [
   { tag: 'coding', keywords: ['code', 'javascript', 'typescript', 'python', 'bug', 'debug', 'api', 'function'] },
   { tag: 'study', keywords: ['study', 'learn', 'revision', 'notes', 'exam', 'practice', 'flashcard'] },
@@ -18,10 +17,10 @@ const TAG_RULES = [
 let aiAvailable = false;
 
 /** Returns the AI status badge element from popup/sidepanel markup. */
-const getStatusNode = async () => document.getElementById('ai-status');
+const getStatusNode = () => document.getElementById('ai-status');
 
 /** Ensures AI status markup has dedicated dot and text nodes for rich updates. */
-const ensureStatusStructure = async (statusNode) => {
+const ensureStatusStructure = (statusNode) => {
   if (!statusNode) {
     return { dot: null, text: null };
   }
@@ -40,13 +39,13 @@ const ensureStatusStructure = async (statusNode) => {
 
 /** Updates the AI badge text and visual status style. */
 const setStatus = async (text, statusClass) => {
-  const statusNode = await getStatusNode();
+  const statusNode = getStatusNode();
 
   if (!statusNode) {
     return;
   }
 
-  const { dot, text: textNode } = await ensureStatusStructure(statusNode);
+  const { dot, text: textNode } = ensureStatusStructure(statusNode);
 
   if (textNode) {
     textNode.textContent = text;
@@ -66,14 +65,14 @@ const setStatus = async (text, statusClass) => {
 };
 
 /** Returns optional progress UI nodes in settings panels when present. */
-const getProgressNodes = async () => ({
+const getProgressNodes = () => ({
   track: document.getElementById('ai-progress-track'),
   text: document.getElementById('ai-progress-text')
 });
 
 /** Clears model progress UI and shows mode message. */
-const showModeMessage = async (message) => {
-  const nodes = await getProgressNodes();
+const showModeMessage = (message) => {
+  const nodes = getProgressNodes();
 
   if (nodes.track) {
     nodes.track.classList.add('hidden');
@@ -89,15 +88,15 @@ const showModeMessage = async (message) => {
 };
 
 /** Normalizes text for deterministic token matching. */
-const normalizeText = async (value) => String(value || '')
+const normalizeText = (value) => String(value || '')
   .toLowerCase()
   .replace(/[^\w\s]+/g, ' ')
   .replace(/\s+/g, ' ')
   .trim();
 
 /** Tokenizes normalized text into unique terms. */
-const toTokenSet = async (value) => {
-  const normalized = await normalizeText(value);
+const toTokenSet = (value) => {
+  const normalized = normalizeText(value);
 
   if (!normalized) {
     return new Set();
@@ -107,8 +106,8 @@ const toTokenSet = async (value) => {
 };
 
 /** Filters prompts by basic title/text/tag keyword match. */
-const keywordFilter = async (query, prompts) => {
-  const normalizedQuery = await normalizeText(query);
+const keywordFilter = (query, prompts) => {
+  const normalizedQuery = normalizeText(query);
 
   if (!normalizedQuery) {
     return Array.isArray(prompts) ? prompts : [];
@@ -123,12 +122,12 @@ const keywordFilter = async (query, prompts) => {
 };
 
 /** Computes deterministic relevance score from token and phrase overlap. */
-const scorePrompt = async (query, prompt) => {
-  const normalizedQuery = await normalizeText(query);
+const scorePrompt = (query, prompt) => {
+  const normalizedQuery = normalizeText(query);
   const title = String(prompt?.title || '').toLowerCase();
   const text = String(prompt?.text || '').toLowerCase();
   const tagsText = (prompt?.tags || []).join(' ').toLowerCase();
-  const queryTokens = Array.from(await toTokenSet(normalizedQuery));
+  const queryTokens = Array.from(toTokenSet(normalizedQuery));
   let rawScore = 0;
 
   if (!normalizedQuery) {
@@ -171,7 +170,7 @@ const scorePrompt = async (query, prompt) => {
 /** Initializes model-free smart features and updates status UI. */
 const initModel = async () => {
   aiAvailable = true;
-  await showModeMessage('Model-free mode active. No model download required.');
+  showModeMessage('Model-free mode active. No model download required.');
   await setStatus('Smart Features Ready', 'pn-ai-status--ready');
   return true;
 };
@@ -187,7 +186,7 @@ const cosineSimilarity = async (_vecA, _vecB) => 0;
 
 /** Ranks prompts by deterministic relevance and falls back to keyword filtering. */
 const semanticSearch = async (query, prompts) => {
-  const normalizedQuery = await normalizeText(query);
+  const normalizedQuery = normalizeText(query);
 
   if (!normalizedQuery) {
     return Array.isArray(prompts) ? prompts : [];
@@ -197,7 +196,7 @@ const semanticSearch = async (query, prompts) => {
   const scored = [];
 
   for (const prompt of pool) {
-    const score = await scorePrompt(normalizedQuery, prompt);
+    const score = scorePrompt(normalizedQuery, prompt);
 
     if (score > 0) {
       scored.push({
@@ -233,7 +232,7 @@ const suggestTags = async (text) => {
   }
 
   const mergedText = `${userContext} ${baseText}`.trim();
-  const normalized = await normalizeText(mergedText);
+  const normalized = normalizeText(mergedText);
 
   if (!normalized) {
     return [];
@@ -264,9 +263,9 @@ const suggestTags = async (text) => {
 };
 
 /** Computes Jaccard similarity between two token sets. */
-const computeJaccard = async (leftText, rightText) => {
-  const left = await toTokenSet(leftText);
-  const right = await toTokenSet(rightText);
+const computeJaccard = (leftText, rightText) => {
+  const left = toTokenSet(leftText);
+  const right = toTokenSet(rightText);
 
   if (!left.size || !right.size) {
     return 0;
@@ -285,15 +284,15 @@ const computeJaccard = async (leftText, rightText) => {
 };
 
 /** Detects near-duplicate prompts with normalized text and token overlap heuristics. */
-const isDuplicate = async (newText, existingPrompts) => {
-  const target = await normalizeText(newText);
+const isDuplicate = (newText, existingPrompts) => {
+  const target = normalizeText(newText);
 
   if (!target) {
     return { duplicate: false };
   }
 
   for (const prompt of existingPrompts || []) {
-    const candidate = await normalizeText(prompt?.text || '');
+    const candidate = normalizeText(prompt?.text || '');
 
     if (!candidate) {
       continue;
@@ -303,7 +302,7 @@ const isDuplicate = async (newText, existingPrompts) => {
       return { duplicate: true, match: prompt };
     }
 
-    const similarity = await computeJaccard(target, candidate);
+    const similarity = computeJaccard(target, candidate);
 
     if (similarity >= 0.86) {
       return { duplicate: true, match: prompt };
@@ -314,7 +313,7 @@ const isDuplicate = async (newText, existingPrompts) => {
 };
 
 /** No embedding hydration needed in model-free mode. */
-const rehydratePromptEmbeddings = async (_prompts) => false;
+const rehydratePromptEmbeddings = (_prompts) => false;
 
 const AI = {
   initModel,
@@ -324,8 +323,7 @@ const AI = {
   suggestTags,
   isDuplicate,
   rehydratePromptEmbeddings,
-  isAvailable,
-  LABEL_CANDIDATES
+  isAvailable
 };
 
 if (typeof window !== 'undefined') {

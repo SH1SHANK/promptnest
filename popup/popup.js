@@ -6,114 +6,22 @@
 
 let pendingDuplicatePayload = null;
 let popupBootstrapped = false;
+let _searchTimer = null;
+const TEXT_CLAMP_LENGTH = 180;
 
-/** Returns a required popup DOM node by id. */
-const byId = async (id) => document.getElementById(id);
-
-/** Converts a comma-separated tag string into a normalized string array. */
-const parseTags = async (raw) => String(raw || '').split(',').map((item) => item.trim()).filter(Boolean);
-
-/** Syncs badge tags to the hidden prompt-tags input. */
-const syncBadgesToHidden = () => {
-  const wrap = document.getElementById('tag-badges-wrap');
-  const hidden = document.getElementById('prompt-tags');
-  if (!wrap || !hidden) return;
-
-  const tags = Array.from(wrap.querySelectorAll('.pn-tag-badge'))
-    .map((b) => b.dataset.tag)
-    .filter(Boolean);
-  hidden.value = tags.join(', ');
-};
-
-/** Adds a single tag badge to the badge container and syncs to hidden input. */
-const addTagBadge = (tag) => {
-  const normalized = String(tag || '').trim().toLowerCase();
-  const cleanTag = normalized.replace(/[,\s]/g, '');
-  if (!cleanTag) return;
-
-  const wrap = document.getElementById('tag-badges-wrap');
-  const input = document.getElementById('prompt-tags-input');
-  if (!wrap) return;
-
-  const existing = Array.from(wrap.querySelectorAll('.pn-tag-badge')).map((b) => b.dataset.tag);
-  if (existing.includes(cleanTag)) return;
-
-  const badge = document.createElement('span');
-  badge.className = 'pn-tag-badge';
-  badge.dataset.tag = cleanTag;
-  badge.innerHTML = `${cleanTag}<button type="button" class="pn-tag-badge__remove">×</button>`;
-
-  badge.querySelector('.pn-tag-badge__remove')?.addEventListener('click', () => {
-    badge.remove();
-    syncBadgesToHidden();
-  });
-
-  if (input) {
-    wrap.insertBefore(badge, input);
-  } else {
-    wrap.appendChild(badge);
-  }
-
-  syncBadgesToHidden();
-};
-
-/** Creates and displays a short-lived popup toast notification. */
-const showToast = async (message) => {
-  const toast = document.createElement('div');
-  toast.className = 'pn-toast';
-  toast.textContent = String(message || '').trim();
-  document.body.appendChild(toast);
-
-  setTimeout(() => {
-    toast.remove();
-  }, 2500);
-};
-
-/** Returns true when a URL belongs to one of PromptNest's supported LLM platforms. */
-const isSupportedTabUrl = async (url) => {
-  const value = String(url || '').toLowerCase();
-  return [
-    'https://chatgpt.com/',
-    'https://claude.ai/',
-    'https://gemini.google.com/',
-    'https://www.perplexity.ai/',
-    'https://copilot.microsoft.com/'
-  ].some((prefix) => value.startsWith(prefix));
-};
-
-/** Returns active tab metadata with support status and id fields. */
-const getActiveTabContext = async () => {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  const tab = tabs[0] || null;
-
-  return {
-    tabId: tab?.id || null,
-    url: tab?.url || '',
-    supported: await isSupportedTabUrl(tab?.url || '')
-  };
-};
-
-/** Sends an action message to the active tab content script. */
-const sendToActiveTab = async (payload) => {
-  const context = await getActiveTabContext();
-
-  if (!context.tabId) {
-    return { ok: false, error: 'No active tab found.' };
-  }
-
+/** Formats a relative time string from an ISO date (e.g. '3 hours ago'). */
+const formatRelativeTime = (isoDate) => {
   try {
-    return await chrome.tabs.sendMessage(context.tabId, payload);
-  } catch (error) {
-    return { ok: false, error: error.message || 'Unable to reach content script.' };
-  }
-};
-
-/** Builds a reusable tag pill element for prompt and history cards. */
-const createTagPill = async (tag) => {
-  const pill = document.createElement('span');
-  pill.className = 'pn-tag-pill';
-  pill.textContent = tag;
-  return pill;
+    const diff = Date.now() - new Date(isoDate).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days}d ago`;
+    return new Date(isoDate).toLocaleDateString();
+  } catch { return ''; }
 };
 
 /** Creates a styled empty state block with inline SVG icon and copy. */
@@ -143,87 +51,150 @@ const updateTabIndicator = async () => {
   return;
 };
 
-/** Renders one prompt card with inject and delete actions. */
+/** Renders one prompt card with inject, copy, and delete actions. */
 const createPromptCard = async (prompt, activeFilter, canInject) => {
   const card = document.createElement('article');
   card.className = 'pn-prompt-card';
 
+  // Semantic relevance badge (if present)
+  if (typeof prompt._semanticScore === 'number') {
+    const relevance = document.createElement('div');
+    relevance.className = 'pn-relevance-badge';
+    relevance.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>${(prompt._semanticScore * 100).toFixed(0)}%`;
+    card.appendChild(relevance);
+  }
+
+  // Title
   const title = document.createElement('h3');
   title.className = 'pn-card-title';
   title.textContent = prompt.title;
+  card.appendChild(title);
 
-  const text = document.createElement('p');
-  text.className = 'pn-card-text';
-  text.textContent = prompt.text;
+  // Meta info (character count, date)
+  const meta = document.createElement('p');
+  meta.className = 'pn-card-meta pn-card-meta--subtle';
+  const charCount = (prompt.text || '').length;
+  const createdLabel = prompt.createdAt ? formatRelativeTime(prompt.createdAt) : '';
+  meta.textContent = `${charCount} chars${createdLabel ? ` • ${createdLabel}` : ''}`;
+  card.appendChild(meta);
 
+  // Text with clamp
+  const textWrap = document.createElement('div');
+  textWrap.className = 'pn-card-text-wrap';
+  const textEl = document.createElement('p');
+  textEl.className = 'pn-card-text';
+  const fullText = String(prompt.text || '');
+  const isClamped = fullText.length > TEXT_CLAMP_LENGTH;
+  textEl.textContent = isClamped ? fullText.slice(0, TEXT_CLAMP_LENGTH) + '…' : fullText;
+  textWrap.appendChild(textEl);
+
+  if (isClamped) {
+    const toggle = document.createElement('button');
+    toggle.className = 'pn-text-toggle';
+    toggle.type = 'button';
+    toggle.textContent = 'Show more';
+    let expanded = false;
+    toggle.addEventListener('click', () => {
+      expanded = !expanded;
+      textEl.textContent = expanded ? fullText : fullText.slice(0, TEXT_CLAMP_LENGTH) + '…';
+      toggle.textContent = expanded ? 'Show less' : 'Show more';
+    });
+    textWrap.appendChild(toggle);
+  }
+  card.appendChild(textWrap);
+
+  // Tags
   const tagsWrap = document.createElement('div');
   tagsWrap.className = 'pn-tag-wrap';
-
   for (const tag of prompt.tags || []) {
     tagsWrap.appendChild(await createTagPill(tag));
   }
+  if (prompt.tags?.length) card.appendChild(tagsWrap);
 
+  // Actions row
   const actions = document.createElement('div');
   actions.className = 'pn-card-actions';
 
+  // Inject button
   const injectButton = document.createElement('button');
-  injectButton.className = 'pn-btn pn-btn--ghost';
+  injectButton.className = 'pn-btn pn-btn--ghost pn-btn-icon-label';
   injectButton.type = 'button';
-  injectButton.textContent = 'Inject';
-
+  injectButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"></path><path d="M10 14L21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>Inject`;
   if (!canInject) {
     injectButton.disabled = true;
     injectButton.title = 'Open on a supported LLM page';
   } else {
+    injectButton.title = 'Inject into active chat';
     injectButton.addEventListener('click', () => {
       void (async () => {
         const response = await sendToActiveTab({ action: 'injectPrompt', text: prompt.text });
-
         if (!response?.ok) {
           await showToast(response?.error || 'Inject failed.');
           return;
         }
-
         window.close();
       })();
     });
   }
 
-  const deleteButton = document.createElement('button');
-  deleteButton.className = 'pn-btn pn-btn-danger';
-  deleteButton.type = 'button';
-  deleteButton.textContent = 'Delete';
+  // Copy button
+  const copyButton = document.createElement('button');
+  copyButton.className = 'pn-btn pn-btn--ghost pn-btn-icon-label';
+  copyButton.type = 'button';
+  copyButton.title = 'Copy to clipboard';
+  copyButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>Copy`;
+  copyButton.addEventListener('click', () => {
+    void (async () => {
+      try {
+        await navigator.clipboard.writeText(prompt.text);
+        copyButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>Copied!`;
+        copyButton.classList.add('pn-btn--copied');
+        setTimeout(() => {
+          copyButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>Copy`;
+          copyButton.classList.remove('pn-btn--copied');
+        }, 1500);
+      } catch {
+        await showToast('Failed to copy');
+      }
+    })();
+  });
 
+  // Improve button
+  const improveButton = document.createElement('button');
+  improveButton.className = 'pn-btn pn-btn--ghost pn-btn-icon-label';
+  improveButton.type = 'button';
+  improveButton.title = 'Improve prompt (Side Panel)';
+  improveButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#a49aff"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>Improve`;
+  improveButton.addEventListener('click', () => {
+    // Navigate to the sidepanel URL (can open in a new tab if sidepanel isn't open)
+    window.open(chrome.runtime.getURL('sidepanel/sidepanel.html'), '_blank');
+  });
+
+  // Delete button
+  const deleteButton = document.createElement('button');
+  deleteButton.className = 'pn-btn pn-btn-danger pn-btn-icon-label pn-ml-auto';
+  deleteButton.type = 'button';
+  deleteButton.title = 'Delete prompt';
+  deleteButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
   deleteButton.addEventListener('click', () => {
     void (async () => {
       const deleted = await window.Store.deletePrompt(prompt.id);
-
       if (!deleted) {
         await showToast('Failed to delete prompt.');
         return;
       }
-
       await renderPrompts(activeFilter);
     })();
   });
 
-  if (typeof prompt._semanticScore === 'number') {
-    const relevance = document.createElement('p');
-    relevance.className = 'pn-relevance';
-    relevance.textContent = `Relevance: ${(prompt._semanticScore * 100).toFixed(0)}%`;
-    card.appendChild(relevance);
-  }
-
   actions.appendChild(injectButton);
+  actions.appendChild(copyButton);
   actions.appendChild(deleteButton);
-  card.appendChild(title);
-  card.appendChild(text);
-  card.appendChild(tagsWrap);
   card.appendChild(actions);
   return card;
 };
 
-/** Renders one history card with delete and popup-only PDF export actions. */
+/** Renders one history card with improved layout and actions. */
 const createHistoryCard = async (entry) => {
   const card = document.createElement('article');
   card.className = 'pn-history-card';
@@ -233,12 +204,14 @@ const createHistoryCard = async (entry) => {
   title.textContent = entry.title || 'Untitled chat';
 
   const meta = document.createElement('p');
-  meta.className = 'pn-card-meta';
-  meta.textContent = `${String(entry.platform || 'unknown').toUpperCase()} • ${new Date(entry.createdAt).toLocaleString()}`;
+  meta.className = 'pn-card-meta pn-card-meta--subtle';
+  const platform = String(entry.platform || 'unknown').toUpperCase();
+  const relTime = entry.createdAt ? formatRelativeTime(entry.createdAt) : '';
+  const msgCount = entry.messages?.length || 0;
+  meta.textContent = `${platform} • ${relTime}${msgCount ? ` • ${msgCount} msg${msgCount === 1 ? '' : 's'}` : ''}`;
 
   const tagsWrap = document.createElement('div');
   tagsWrap.className = 'pn-tag-wrap';
-
   for (const tag of entry.tags || []) {
     tagsWrap.appendChild(await createTagPill(tag));
   }
@@ -247,14 +220,12 @@ const createHistoryCard = async (entry) => {
   actions.className = 'pn-card-actions';
 
   const pdfButton = document.createElement('button');
-  pdfButton.className = 'pn-btn pn-btn--ghost';
+  pdfButton.className = 'pn-btn pn-btn--ghost pn-btn-icon-label';
   pdfButton.type = 'button';
-  pdfButton.textContent = 'Export PDF';
-
+  pdfButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>Export`;
   pdfButton.addEventListener('click', () => {
     void (async () => {
       const result = await window.Exporter.exportChat(entry, 'pdf');
-
       if (!result.ok) {
         await showToast(result.error || 'PDF export failed.');
       }
@@ -262,19 +233,17 @@ const createHistoryCard = async (entry) => {
   });
 
   const deleteButton = document.createElement('button');
-  deleteButton.className = 'pn-btn pn-btn-danger';
+  deleteButton.className = 'pn-btn pn-btn-danger pn-btn-icon-label pn-ml-auto';
   deleteButton.type = 'button';
-  deleteButton.textContent = 'Delete';
-
+  deleteButton.title = 'Delete history entry';
+  deleteButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
   deleteButton.addEventListener('click', () => {
     void (async () => {
       const deleted = await window.Store.deleteChatFromHistory(entry.id);
-
       if (!deleted) {
         await showToast('Failed to delete history item.');
         return;
       }
-
       await renderHistory();
     })();
   });
@@ -283,7 +252,7 @@ const createHistoryCard = async (entry) => {
   actions.appendChild(deleteButton);
   card.appendChild(title);
   card.appendChild(meta);
-  card.appendChild(tagsWrap);
+  if (entry.tags?.length) card.appendChild(tagsWrap);
   card.appendChild(actions);
   return card;
 };
@@ -551,7 +520,10 @@ const bindEvents = async () => {
 
   searchInput?.addEventListener('input', (event) => {
     const target = event.target;
-    void renderPrompts(String(target?.value || ''));
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(() => {
+      void renderPrompts(String(target?.value || ''));
+    }, 200);
   });
 
   window.addEventListener('resize', () => {

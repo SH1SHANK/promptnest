@@ -86,6 +86,18 @@ function broadcast(message) {
 
 // ─── Embedding Cache ─────────────────────────────────────────────────────────
 
+let _cacheSaveTimer = null;
+const CACHE_SAVE_DELAY_MS = 5000;
+
+/** Debounced write of embedding cache to storage — coalesces rapid mutations. */
+function scheduleCacheSave() {
+  if (_cacheSaveTimer) clearTimeout(_cacheSaveTimer);
+  _cacheSaveTimer = setTimeout(() => {
+    _cacheSaveTimer = null;
+    chrome.storage.local.set({ embeddingCache: AI.embeddingCache }).catch(() => {});
+  }, CACHE_SAVE_DELAY_MS);
+}
+
 async function rebuildCache() {
   const { prompts = [] } = await chrome.storage.local.get('prompts');
   const stored = await chrome.storage.local.get('embeddingCache');
@@ -102,6 +114,7 @@ async function rebuildCache() {
     }
   }
 
+  // Flush immediately after full rebuild
   await chrome.storage.local.set({ embeddingCache: AI.embeddingCache });
 }
 
@@ -109,13 +122,13 @@ async function addToCache(prompt) {
   try {
     const text = `${prompt.title} ${prompt.text} ${(prompt.tags ?? []).join(' ')}`;
     AI.embeddingCache[prompt.id] = await embed(text);
-    await chrome.storage.local.set({ embeddingCache: AI.embeddingCache });
+    scheduleCacheSave();
   } catch (_) {}
 }
 
 async function removeFromCache(promptId) {
   delete AI.embeddingCache[promptId];
-  await chrome.storage.local.set({ embeddingCache: AI.embeddingCache });
+  scheduleCacheSave();
 }
 
 // ─── AI Feature: Semantic Search ─────────────────────────────────────────────
@@ -290,11 +303,19 @@ async function getSmartSuggestions(conversationText) {
 // ─── AI Feature: AI Prompt Improvement (Gemini Flash) ─────────────────────────
 
 async function improvePromptViaGemini(text, tags = [], style = 'general') {
-  if (!text || text.trim().length === 0) return null;
+  console.log('[PromptNest] improvePromptViaGemini called with:', { text, tags, style });
+  
+  if (!text || text.trim().length === 0) {
+    console.warn('[PromptNest] Empty text provided to improvePromptViaGemini');
+    return null;
+  }
 
   try {
     const { pnGeminiKey } = await chrome.storage.local.get('pnGeminiKey');
-    if (!pnGeminiKey) return null;
+    if (!pnGeminiKey) {
+      console.warn('[PromptNest] No Gemini API key found in storage!');
+      return null;
+    }
 
     let styleInstruction = 'Make it clear, concise, and highly effective for an AI.';
     if (style === 'coding') {
@@ -311,6 +332,8 @@ async function improvePromptViaGemini(text, tags = [], style = 'general') {
 ${styleInstruction} 
 ${tagContext}
 ONLY return the improved prompt text. Do not add quotes, do not explain your changes, do not write "Here is the improved prompt:". Just the raw, ready-to-use prompt text.`;
+
+    console.log('[PromptNest] Fetching from Gemini API...');
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${pnGeminiKey}`,
@@ -329,11 +352,16 @@ ONLY return the improved prompt text. Do not add quotes, do not explain your cha
       }
     );
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[PromptNest] Gemini API error:', response.status, errorText);
+      return null;
+    }
 
     const data = await response.json();
     const textResult = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     
+    console.log('[PromptNest] Successfully grabbed Gemini response');
     return textResult.trim() || null;
   } catch (err) {
     console.error('[PromptNest] Failed to improve prompt via Gemini:', err);
@@ -378,7 +406,7 @@ const handleAIMessage = async (message, sendResponse) => {
         return true;
 
       case 'AI_IMPROVE_PROMPT':
-        sendResponse({ text: await improvePromptViaGemini(message.text, message.tags, message.style) });
+        improvePromptViaGemini(message.text, message.tags, message.style).then(text => sendResponse({ text }));
         return true;
 
       case 'AI_STATUS_CHECK':

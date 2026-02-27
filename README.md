@@ -3,57 +3,45 @@
 ![Manifest V3](https://img.shields.io/badge/Manifest-V3-1f2937?style=flat-square)
 ![Multi-LLM](https://img.shields.io/badge/Multi--LLM-Supported-1f2937?style=flat-square)
 ![On-Device AI](https://img.shields.io/badge/On--Device-AI-1f2937?style=flat-square)
-![No Backend](https://img.shields.io/badge/No-Backend-1f2937?style=flat-square)
+![Gemini API](https://img.shields.io/badge/Gemini-API-1f2937?style=flat-square)
 
-PromptNest is a Chrome Extension for saving prompts, exporting chat sessions, and using local AI assistance directly inside your browser. It is built for developer-centric workflows across major LLM platforms with a popup-first control center and an in-page toolbar.
+PromptNest is a Chrome Extension designed for power users of Large Language Models (LLMs). It acts as a central hub for saving prompts, exporting chat sessions, and improving your prompts using AI, all directly inside your browser. It features a beautifully crafted popup/side panel control center and an unobtrusive in-page toolbar that seamlessly integrates with major LLM platforms.
 
-## Feature Phases
+## Key Features
 
-| Phase | Focus | Delivered |
-| --- | --- | --- |
-| Phase 1 | Foundation | MV3 scaffold, popup/content/background architecture, storage/export utilities |
-| Phase 2 | Production core | Multi-platform scraping/injection, toolbar actions, robust popup flows |
-| Phase 3 | On-device AI | Semantic prompt search, automatic tag suggestions, duplicate detection |
+- **Multi-Platform Support**: Works seamlessly with ChatGPT, Claude, Gemini, Perplexity, and Microsoft Copilot.
+- **Universal Toolbar**: An in-page floating toolbar for quick access to saving prompts and exporting chats.
+- **Advanced Exporting**: Export your entire chat history in multiple formats (Markdown, PDF, Plain Text, JSON) or copy directly to your clipboard.
+- **On-Device AI (Transformers.js)**: Runs a local, private neural network right in your browser for lightning-fast **Semantic Search**, **Auto-Tag Suggestions**, and **Duplicate Prompt Detection** without ever sending your prompts to the cloud.
+- **AI Prompt Improvement**: Select a style (Coding, Creative, Study, or General) and let the Gemini API refine and enhance your prompts before you send them.
+- **Smart Management**: Organize your prompts with tags, find exactly what you need with meaning-based search (not just keyword matching), and inject them directly into your active chat window.
 
-## Supported Platforms
+For a detailed breakdown of all features, refer to the [FEATURES.md](./FEATURES.md) file.
 
-| Platform | Status |
-| --- | --- |
-| ChatGPT (`chatgpt.com`) | Supported |
-| Claude (`claude.ai`) | Supported |
-| Gemini (`gemini.google.com`) | Supported |
-| Perplexity (`www.perplexity.ai`) | Supported |
-| Copilot (`copilot.microsoft.com`) | Supported |
+## Installation Instructions
 
-## Load Unpacked in Chrome
+PromptNest is currently a developer preview. To install it locally:
 
-1. Open `chrome://extensions` in Chrome.
-2. Enable **Developer mode**.
-3. Click **Load unpacked**.
-4. Select `/Users/shashank/Desktop/promptnest`.
-5. Pin PromptNest for quick access.
+1. Download or clone this repository to your local machine.
+2. Open Google Chrome and navigate to `chrome://extensions`.
+3. Enable **Developer mode** using the toggle switch in the top right corner.
+4. Click the **Load unpacked** button in the top left.
+5. Select the `promptnest` folder (the directory containing `manifest.json`).
+6. The extension will install. Pin PromptNest to your toolbar for quick access!
 
-## Screenshots
+## Documentation
 
-<!-- Add screenshots here -->
+To help you navigate and understand the project, check out these detailed docs:
 
-## Privacy
+- [FEATURES.md](./FEATURES.md) - Comprehensive list of features and capabilities.
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - System design, extension structure, and data flow.
+- [MODELS.md](./MODELS.md) - Details on AI integration, local models vs APIs.
 
-All AI inference runs locally in your browser. No data leaves your device.
+## Privacy & Data
 
-## Known Limitations
-
-- DOM selector structures can change frequently on Gemini and Copilot, which may require selector updates.
-- `chrome.storage.local` has practical capacity limits (commonly around 5MB depending on payload shape), so very large histories or embeddings may need pruning.
-- The Transformer model downloads on first use and can add startup latency before it is cached locally.
-
-## Development Notes
-
-- Popup AI features are isolated in `utils/ai.js`; content scripts and service worker do not import Transformers.js.
-- Prompt embeddings are stored as JSON-serializable arrays in `chrome.storage.local`.
-- If AI initialization fails, PromptNest degrades gracefully to non-AI behavior.
-- Icons are generated via `scripts/generate-icons.js` into `icons/icon16.png`, `icons/icon48.png`, and `icons/icon128.png`.
+- **Local Storage**: All your saved prompts and chat histories are stored locally using `chrome.storage.local`.
+- **API Usage**: AI prompt improvement uses the requested API (e.g., Gemini API). Communication happens via service workers, keeping your keys and queries secure within your browser environment.
 
 ## License
 
-MIT
+MIT License. See [LICENSE](./LICENSE) for details.

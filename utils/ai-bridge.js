@@ -46,7 +46,8 @@ const AIBridge = {
   async _send(message) {
     try {
       return await chrome.runtime.sendMessage(message);
-    } catch (_) {
+    } catch (error) {
+      console.warn('[PromptNest][AIBridge] Message failed:', message?.type, error?.message);
       return null;
     }
   },

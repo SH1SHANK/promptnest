@@ -44,6 +44,39 @@ const savePrompt = async ({ title, text, tags = [], category = null, embedding =
   }
 };
 
+/** Updates an existing prompt entry by id and returns the updated prompt or false. */
+const updatePrompt = async (id, updates) => {
+  try {
+    const prompts = await getPrompts();
+    const index = prompts.findIndex((item) => item.id === id);
+
+    if (index === -1) {
+      return false;
+    }
+
+    const existing = prompts[index];
+    const patched = {
+      ...existing,
+      ...updates,
+      id: existing.id,
+      createdAt: existing.createdAt
+    };
+
+    if (updates.tags) {
+      patched.tags = Array.isArray(updates.tags)
+        ? updates.tags.map((t) => String(t).trim()).filter(Boolean)
+        : existing.tags;
+    }
+
+    prompts[index] = patched;
+    await chrome.storage.local.set({ [PROMPTS_KEY]: prompts });
+    return patched;
+  } catch (error) {
+    console.error('[PromptNest][Store] Failed to update prompt.', error);
+    return false;
+  }
+};
+
 /** Deletes one prompt entry by id and returns true when complete. */
 const deletePrompt = async (id) => {
   try {
@@ -74,12 +107,12 @@ const saveChatToHistory = async (chat) => {
     const history = await getChatHistory();
     const nextEntry = {
       id: crypto.randomUUID(),
-      title: String(chat?.title || document.title || 'Untitled chat').trim(),
+      title: String(chat?.title || 'Untitled chat').trim(),
       platform: String(chat?.platform || 'unknown').trim(),
       tags: Array.isArray(chat?.tags) ? chat.tags.map((tag) => String(tag).trim()).filter(Boolean) : [],
       messages: Array.isArray(chat?.messages) ? chat.messages : [],
       createdAt: new Date().toISOString(),
-      url: String(chat?.url || window.location.href || '')
+      url: String(chat?.url || '')
     };
 
     const nextHistory = [...history, nextEntry];
@@ -112,6 +145,7 @@ const deleteChatFromHistory = async (id) => {
 const Store = {
   getPrompts,
   savePrompt,
+  updatePrompt,
   deletePrompt,
   getChatHistory,
   saveChatToHistory,

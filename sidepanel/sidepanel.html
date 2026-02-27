@@ -111,35 +111,56 @@
       <section class="tab-content pn-tab-content" data-tab="export">
         <div class="pn-export-grid">
           <aside class="pn-export-controls">
-            <p id="selection-meta" class="pn-card-meta">
-              No message selection received yet.
-            </p>
+            <div class="pn-export-meta-badges">
+              <span id="selection-meta" class="pn-card-meta">No message selection received yet.</span>
+              <div id="export-counts" class="pn-export-counts pn-hidden">
+                <span id="export-msg-count" class="pn-export-count-badge">0 msgs</span>
+                <span id="export-word-count" class="pn-export-count-badge">0 words</span>
+              </div>
+            </div>
 
             <label class="pn-field">
               <span>Export Format</span>
               <select id="export-format">
                 <option value="markdown">Markdown (.md)</option>
+                <option value="txt">Plain Text (.txt)</option>
+                <option value="json">JSON (.json)</option>
                 <option value="pdf">PDF (.pdf)</option>
               </select>
             </label>
 
-            <label class="pn-check-row">
-              <input id="include-date" type="checkbox" checked />
-              <span>Include export date</span>
+            <label class="pn-field">
+              <span>Filename <small class="pn-field-hint">(optional)</small></span>
+              <input id="export-filename" type="text" placeholder="Auto-generated" class="pn-export-filename-input" />
             </label>
 
-            <label class="pn-check-row">
-              <input id="include-platform" type="checkbox" checked />
-              <span>Include platform label</span>
-            </label>
+            <div class="pn-export-toggles">
+              <label class="pn-check-row">
+                <input id="include-date" type="checkbox" checked />
+                <span>Include export date</span>
+              </label>
 
-            <button
-              id="export-btn"
-              type="button"
-              class="pn-btn pn-btn--primary"
-            >
-              Export Markdown
-            </button>
+              <label class="pn-check-row">
+                <input id="include-platform" type="checkbox" checked />
+                <span>Include platform label</span>
+              </label>
+
+              <label class="pn-check-row">
+                <input id="include-msg-numbers" type="checkbox" />
+                <span>Include message numbers</span>
+              </label>
+            </div>
+
+            <div class="pn-export-actions-row">
+              <button id="export-btn" type="button" class="pn-btn pn-btn--primary">Export Markdown</button>
+              <button id="copy-export-btn" type="button" class="pn-btn pn-btn--ghost pn-btn--copy" title="Copy to clipboard">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                Copy
+              </button>
+            </div>
             <p id="export-status" class="pn-card-meta"></p>
           </aside>
 
@@ -407,10 +428,67 @@
       </div>
     </div>
 
+    <!-- Improve Prompt Diff Modal -->
+    <div id="pn-improve-modal" class="pn-modal pn-hidden">
+      <div class="pn-modal__backdrop" data-close-improve></div>
+      <div class="pn-modal__panel pn-improve-panel">
+        <div class="pn-improve-header">
+          <h2 class="pn-modal__title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#a49aff;vertical-align:-2px;margin-right:6px"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>
+            Improve Prompt
+          </h2>
+          <select id="pn-improve-modal-style" class="pn-improve-style-select">
+            <option value="general">General Polish</option>
+            <option value="coding">Coding / Tech</option>
+            <option value="study">Study / Summarize</option>
+            <option value="creative">Creative Writing</option>
+          </select>
+        </div>
+
+        <div id="pn-improve-loading" class="pn-improve-loading">
+          <div class="pn-skeleton-line pn-skeleton-line--wide"></div>
+          <div class="pn-skeleton-line pn-skeleton-line--medium"></div>
+          <div class="pn-skeleton-line pn-skeleton-line--wide"></div>
+          <div class="pn-skeleton-line pn-skeleton-line--short"></div>
+          <p class="pn-improve-loading-text">Improving with AI…</p>
+        </div>
+
+        <div id="pn-improve-diff" class="pn-improve-diff pn-hidden">
+          <div class="pn-improve-col">
+            <div class="pn-improve-col-header">
+              <span class="pn-improve-col-label">Original</span>
+              <span id="pn-improve-orig-count" class="pn-improve-count"></span>
+            </div>
+            <div id="pn-improve-original" class="pn-improve-text"></div>
+          </div>
+          <div class="pn-improve-col pn-improve-col--new">
+            <div class="pn-improve-col-header">
+              <span class="pn-improve-col-label pn-improve-col-label--new">Improved</span>
+              <span id="pn-improve-new-count" class="pn-improve-count"></span>
+            </div>
+            <div id="pn-improve-improved" class="pn-improve-text"></div>
+          </div>
+        </div>
+
+        <div id="pn-improve-error" class="pn-improve-error pn-hidden">
+          <p id="pn-improve-error-msg">Could not improve prompt.</p>
+        </div>
+
+        <div class="pn-improve-actions">
+          <button id="pn-improve-reject" class="pn-btn pn-btn--ghost" type="button">Discard</button>
+          <button id="pn-improve-retry" class="pn-btn pn-btn--ghost" type="button" style="color:#a49aff">Retry</button>
+          <button id="pn-improve-accept" class="pn-btn pn-btn--primary" type="button">Accept & Save</button>
+        </div>
+      </div>
+    </div>
+
     <script src="../libs/jspdf.min.js"></script>
     <script src="../libs/html2pdf.bundle.min.js"></script>
     <script src="../libs/turndown.js"></script>
     <script src="../libs/markdown-it.min.js"></script>
+    <script src="../utils/constants.js"></script>
+    <script src="../utils/dom-helpers.js"></script>
+    <script src="../utils/tags.js"></script>
     <script src="../utils/storage.js"></script>
     <script src="../utils/exporter.js"></script>
     <script src="../utils/ai.js"></script>

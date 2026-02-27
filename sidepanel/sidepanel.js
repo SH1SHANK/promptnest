@@ -19,13 +19,7 @@ const DEFAULT_SETTINGS = {
   userContext: ''
 };
 
-const PLATFORM_LABELS = {
-  chatgpt: 'ChatGPT',
-  claude: 'Claude',
-  gemini: 'Gemini',
-  perplexity: 'Perplexity',
-  copilot: 'Copilot'
-};
+// PLATFORM_LABELS and SUPPORTED_URLS now provided by utils/constants.js
 
 const ONBOARDING_CARDS = [
   {
@@ -92,111 +86,15 @@ const state = {
   _searchDebounce: null,
 };
 
-/** Returns a required DOM node by id. */
-const byId = async (id) => document.getElementById(id);
-
-/** Creates and displays a short-lived toast message. */
-const showToast = async (message) => {
-  const toast = document.createElement('div');
-  toast.className = 'pn-toast';
-  toast.textContent = String(message || '').trim();
-  document.body.appendChild(toast);
-
-  setTimeout(() => {
-    toast.remove();
-  }, 2400);
-};
-
-/** Builds reusable empty state markup with icon and copy. */
-const createEmptyState = async (message) => {
-  const stateNode = document.createElement('div');
-  stateNode.className = 'pn-empty-state';
-  stateNode.innerHTML = `
-    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M4 6.5h16v11H4z"></path>
-      <path d="M8 10h8"></path>
-      <path d="M8 13h5"></path>
-    </svg>
-    <p>${String(message || '').trim()}</p>
-  `;
-  return stateNode;
-};
-
-/** Builds a reusable tag pill node. */
-const createTagPill = async (tag) => {
-  const pill = document.createElement('span');
-  pill.className = 'pn-tag-pill';
-  pill.textContent = String(tag || '').trim();
-  return pill;
-};
-
-/** Escapes unsafe markup content. */
-const escapeHtml = async (value) => String(value || '')
-  .replaceAll('&', '&amp;')
-  .replaceAll('<', '&lt;')
-  .replaceAll('>', '&gt;')
-  .replaceAll('"', '&quot;')
-  .replaceAll("'", '&#39;');
-
-/** Removes inline style attributes and style tags before Turndown parses HTML under strict CSP. */
-const stripInlineStylesFromHtml = async (rawHtml) => String(rawHtml || '')
+const stripInlineStylesFromHtml = (rawHtml) => String(rawHtml || '')
   .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
   .replace(/\sstyle\s*=\s*"[^"]*"/gi, '')
   .replace(/\sstyle\s*=\s*'[^']*'/gi, '')
   .replace(/\sstyle\s*=\s*[^\s>]+/gi, '')
   .trim();
 
-/** Converts comma-separated tag text into normalized string array. */
-const parseTags = async (raw) => String(raw || '').split(',').map((item) => item.trim()).filter(Boolean);
+const getOnboardingIconClass = (card) => String(card?.iconClass || 'pn-card-icon--violet');
 
-/** Returns true when URL is one of supported LLM hosts. */
-const isSupportedTabUrl = async (url) => {
-  const value = String(url || '').toLowerCase();
-  return [
-    'https://chatgpt.com/',
-    'https://claude.ai/',
-    'https://gemini.google.com/',
-    'https://www.perplexity.ai/',
-    'https://copilot.microsoft.com/'
-  ].some((prefix) => value.startsWith(prefix));
-};
-
-/** Returns active tab metadata used for inject actions. */
-const getActiveTabContext = async () => {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  const tab = tabs[0] || null;
-
-  return {
-    tabId: tab?.id || null,
-    url: tab?.url || '',
-    supported: await isSupportedTabUrl(tab?.url || '')
-  };
-};
-
-/** Sends one action payload to the active tab content script. */
-const sendToActiveTab = async (payload) => {
-  const context = await getActiveTabContext();
-
-  if (!context.tabId) {
-    return { ok: false, error: 'No active tab found.' };
-  }
-
-  try {
-    return await chrome.tabs.sendMessage(context.tabId, payload);
-  } catch (error) {
-    return { ok: false, error: error?.message || 'Unable to reach content script.' };
-  }
-};
-
-/** Applies sticky underline indicator for active tab button. */
-const updateTabIndicator = async () => {
-  return;
-};
-
-/** Returns accent class for one onboarding card icon identifier. */
-const getOnboardingIconClass = async (card) => String(card?.iconClass || 'pn-card-icon--violet');
-
-/** Returns personalization inputs markup for final onboarding card. */
 const renderOnboardingPersonalizeInputs = async () => `
   <div class="pn-onboard-inputs">
     <div class="pn-input-group">
@@ -211,7 +109,6 @@ const renderOnboardingPersonalizeInputs = async () => `
   </div>
 `;
 
-/** Builds one onboarding slide section from static card metadata. */
 const renderOnboardingCard = async (card, index) => `
   <section class="pn-onboard-card" data-onboard-index="${index}">
     <span class="pn-card-icon ${await getOnboardingIconClass(card)}">${card.icon}</span>
@@ -336,15 +233,11 @@ const maybeRunOnboarding = async () => {
 };
 
 /** Adjusts view-level controls when tab switches. */
-const refreshHeaderControls = async () => {
-  const addPromptButton = await byId('add-prompt-btn');
-  const searchWrap = await byId('search-wrap');
+const refreshHeaderControls = () => {
+  const addPromptButton = byId('add-prompt-btn');
+  const searchWrap = byId('search-wrap');
   const isPromptTab = state.activeTab === 'prompts';
-
-  if (addPromptButton) {
-    addPromptButton.classList.toggle('hidden', !isPromptTab);
-  }
-
+  if (addPromptButton) addPromptButton.classList.toggle('hidden', !isPromptTab);
   if (searchWrap) {
     const isPromptOrTagsTab = isPromptTab || state.activeTab === 'tags';
     searchWrap.classList.toggle('hidden', !isPromptOrTagsTab);
@@ -387,15 +280,14 @@ const switchTab = async (tabName) => {
   if (settingsBtn) settingsBtn.classList.toggle('hidden', isStandaloneView);
   if (refreshBtn) refreshBtn.classList.toggle('hidden', isStandaloneView);
 
-  await refreshHeaderControls();
-  await updateTabIndicator();
+  refreshHeaderControls();
 };
 
 /** Sets plain fallback AI badge state when AI is disabled by settings. */
 const setAiDisabledBadge = async () => {
-  const statusNode = await byId('ai-status');
-  const progressTrack = await byId('ai-progress-track');
-  const progressText = await byId('ai-progress-text');
+  const statusNode = byId('ai-status');
+  const progressTrack = byId('ai-progress-track');
+  const progressText = byId('ai-progress-text');
 
   if (statusNode) {
     statusNode.classList.remove('pn-ai-status--loading', 'pn-ai-status--ready');
@@ -424,18 +316,10 @@ const loadSettings = async () => {
   try {
     const snapshot = await chrome.storage.local.get([SETTINGS_KEY, 'userContext']);
     const saved = snapshot?.[SETTINGS_KEY] || {};
-    const merged = {
-      ...DEFAULT_SETTINGS,
-      ...(saved || {})
-    };
-
+    const merged = { ...DEFAULT_SETTINGS, ...(saved || {}) };
     const legacyContext = String(snapshot?.userContext || '').trim();
-
-    if (!merged.userContext && legacyContext) {
-      merged.userContext = legacyContext;
-    }
-
-    state.settings = await normalizeSettings(merged);
+    if (!merged.userContext && legacyContext) merged.userContext = legacyContext;
+    state.settings = normalizeSettings(merged);
   } catch (_error) {
     state.settings = { ...DEFAULT_SETTINGS };
   }
@@ -450,10 +334,9 @@ const saveSettings = async () => {
 };
 
 /** Returns one normalized settings object with safe defaults. */
-const normalizeSettings = async (raw) => {
+const normalizeSettings = (raw) => {
   const source = raw && typeof raw === 'object' ? raw : {};
   const exportFormat = String(source.defaultExportFormat || DEFAULT_SETTINGS.defaultExportFormat);
-
   return {
     enableAI: Boolean(source.enableAI),
     semanticSearch: Boolean(source.semanticSearch),
@@ -467,20 +350,20 @@ const normalizeSettings = async (raw) => {
 };
 
 /** Returns all settings control nodes. */
-const getSettingsControls = async () => ({
-  enableAI: await byId('setting-enable-ai'),
-  semanticSearch: await byId('setting-semantic-search'),
-  autoSuggestTags: await byId('setting-auto-suggest'),
-  duplicateCheck: await byId('setting-duplicate-check'),
-  defaultExportFormat: await byId('setting-export-format'),
-  defaultIncludeDate: await byId('setting-export-date'),
-  defaultIncludePlatform: await byId('setting-export-platform'),
-  userContext: await byId('setting-user-context')
+const getSettingsControls = () => ({
+  enableAI: byId('setting-enable-ai'),
+  semanticSearch: byId('setting-semantic-search'),
+  autoSuggestTags: byId('setting-auto-suggest'),
+  duplicateCheck: byId('setting-duplicate-check'),
+  defaultExportFormat: byId('setting-export-format'),
+  defaultIncludeDate: byId('setting-export-date'),
+  defaultIncludePlatform: byId('setting-export-platform'),
+  userContext: byId('setting-user-context')
 });
 
 /** Reads current settings control values into a normalized object without mutating state. */
-const readSettingsControlsSnapshot = async () => {
-  const controls = await getSettingsControls();
+const readSettingsControlsSnapshot = () => {
+  const controls = getSettingsControls();
   return normalizeSettings({
     enableAI: controls.enableAI?.checked,
     semanticSearch: controls.semanticSearch?.checked,
@@ -494,10 +377,9 @@ const readSettingsControlsSnapshot = async () => {
 };
 
 /** Returns true when two settings payloads are equivalent. */
-const areSettingsEqual = async (left, right) => {
-  const a = await normalizeSettings(left);
-  const b = await normalizeSettings(right);
-
+const areSettingsEqual = (left, right) => {
+  const a = normalizeSettings(left);
+  const b = normalizeSettings(right);
   return (
     a.enableAI === b.enableAI &&
     a.semanticSearch === b.semanticSearch &&
@@ -511,9 +393,9 @@ const areSettingsEqual = async (left, right) => {
 };
 
 /** Applies current settings values into settings form controls. */
-const renderSettingsControls = async (settingsInput = state.settings) => {
-  const settings = await normalizeSettings(settingsInput);
-  const controls = await getSettingsControls();
+const renderSettingsControls = (settingsInput = state.settings) => {
+  const settings = normalizeSettings(settingsInput);
+  const controls = getSettingsControls();
 
   if (controls.enableAI) {
     controls.enableAI.checked = Boolean(settings.enableAI);
@@ -549,13 +431,13 @@ const renderSettingsControls = async (settingsInput = state.settings) => {
 };
 
 /** Reads settings form controls into in-memory settings state. */
-const readSettingsControls = async () => {
-  state.settings = await readSettingsControlsSnapshot();
+const readSettingsControls = () => {
+  state.settings = readSettingsControlsSnapshot();
 };
 
 /** Writes a status line in the settings panel. */
-const setSettingsStatus = async (message, tone = '') => {
-  const node = await byId('settings-status');
+const setSettingsStatus = (message, tone = '') => {
+  const node = byId('settings-status');
 
   if (!node) {
     return;
@@ -579,70 +461,51 @@ const setSettingsStatus = async (message, tone = '') => {
 };
 
 /** Enables save button only when settings controls differ from persisted state. */
-const syncSettingsSaveState = async () => {
-  const saveButton = await byId('save-settings-btn');
-  const statusNode = await byId('settings-status');
-
-  if (!saveButton) {
-    return;
-  }
-
-  const draftSettings = await readSettingsControlsSnapshot();
-  const hasChanges = !(await areSettingsEqual(draftSettings, state.settings));
-
+const syncSettingsSaveState = () => {
+  const saveButton = byId('save-settings-btn');
+  const statusNode = byId('settings-status');
+  if (!saveButton) return;
+  const draftSettings = readSettingsControlsSnapshot();
+  const hasChanges = !areSettingsEqual(draftSettings, state.settings);
   saveButton.disabled = !hasChanges;
-
   if (hasChanges) {
-    await setSettingsStatus('Unsaved changes. Save to apply.', 'info');
+    setSettingsStatus('Unsaved changes. Save to apply.', 'info');
     return;
   }
-
   if (statusNode?.classList.contains('pn-status-info')) {
-    await setSettingsStatus('');
+    setSettingsStatus('');
   }
 };
 
 /** Replaces current form values with defaults without persisting until Save is clicked. */
-const resetSettingsDraft = async () => {
-  await renderSettingsControls(DEFAULT_SETTINGS);
-  const draftSettings = await readSettingsControlsSnapshot();
-  const hasChanges = !(await areSettingsEqual(draftSettings, state.settings));
-  await syncSettingsSaveState();
-
+const resetSettingsDraft = () => {
+  renderSettingsControls(DEFAULT_SETTINGS);
+  const hasChanges = !areSettingsEqual(readSettingsControlsSnapshot(), state.settings);
+  syncSettingsSaveState();
   if (hasChanges) {
-    await setSettingsStatus('Defaults loaded. Save settings to apply.', 'info');
+    setSettingsStatus('Defaults loaded. Save settings to apply.', 'info');
     return;
   }
-
-  await setSettingsStatus('Settings already match defaults.', 'ok');
+  setSettingsStatus('Settings already match defaults.', 'ok');
 };
 
 /** Applies settings defaults to export controls and state. */
-const applyExportDefaultsFromSettings = async () => {
+const applyExportDefaultsFromSettings = () => {
   state.exportPrefs = {
     format: String(state.settings.defaultExportFormat || 'markdown'),
     includeDate: Boolean(state.settings.defaultIncludeDate),
     includePlatform: Boolean(state.settings.defaultIncludePlatform)
   };
-
-  const formatNode = await byId('export-format');
-  const includeDateNode = await byId('include-date');
-  const includePlatformNode = await byId('include-platform');
-
-  if (formatNode) {
-    formatNode.value = state.exportPrefs.format;
-  }
-
-  if (includeDateNode) {
-    includeDateNode.checked = state.exportPrefs.includeDate;
-  }
-
-  if (includePlatformNode) {
-    includePlatformNode.checked = state.exportPrefs.includePlatform;
-  }
+  const formatNode = byId('export-format');
+  const includeDateNode = byId('include-date');
+  const includePlatformNode = byId('include-platform');
+  if (formatNode) formatNode.value = state.exportPrefs.format;
+  if (includeDateNode) includeDateNode.checked = state.exportPrefs.includeDate;
+  if (includePlatformNode) includePlatformNode.checked = state.exportPrefs.includePlatform;
 };
 
 /** Refreshes AI runtime state based on current settings toggles. */
+let _aiStatusHandler = null;
 const syncAiState = async () => {
   if (!state.settings.enableAI) {
     await setAiDisabledBadge();
@@ -650,15 +513,17 @@ const syncAiState = async () => {
     return false;
   }
 
-  // Show AI bar loading state
   const aiBar = document.getElementById('pn-ai-bar');
   if (aiBar) {
     aiBar.classList.remove('pn-ai-bar--hidden', 'pn-ai-bar--ready');
     aiBar.classList.add('pn-ai-bar--loading');
   }
 
-  // Listen for AI status updates from service worker
-  const statusHandler = (msg) => {
+  // Remove previous listener to prevent leak (H-2)
+  if (_aiStatusHandler) {
+    chrome.runtime.onMessage.removeListener(_aiStatusHandler);
+  }
+  _aiStatusHandler = (msg) => {
     if (msg?.type === 'AI_DOWNLOAD_PROGRESS') {
       const progressText = document.getElementById('ai-progress-text');
       if (progressText) progressText.textContent = `Downloading... ${msg.progress}%`;
@@ -666,7 +531,6 @@ const syncAiState = async () => {
     }
 
     if (msg?.type === 'AI_STATUS') {
-      // If it's already loading, show initializing
       if (msg.status === 'loading') {
         const progressText = document.getElementById('ai-progress-text');
         if (progressText && !progressText.textContent.startsWith('Downloading')) {
@@ -699,7 +563,6 @@ const syncAiState = async () => {
           statusNode.innerHTML = '<span class="pn-ai-dot"></span><span class="pn-ai-status__text">Smart</span>';
         }
 
-        // Trigger smart suggestions
         void loadSmartSuggestions();
       }
       if (msg.status === 'failed') {
@@ -719,7 +582,7 @@ const syncAiState = async () => {
     }
   };
 
-  chrome.runtime.onMessage.addListener(statusHandler);
+  chrome.runtime.onMessage.addListener(_aiStatusHandler);
 
   // Request model init
   const result = await window.AIBridge.init();
@@ -727,14 +590,14 @@ const syncAiState = async () => {
 
   if (ready) {
     state.aiReady = true;
-    statusHandler({ type: 'AI_STATUS', status: 'ready' });
+    _aiStatusHandler({ type: 'AI_STATUS', status: 'ready' });
   }
 
   return ready;
 };
 
 /** Returns readable platform label from known platform id keys. */
-const getPlatformLabel = async (platform) => {
+const getPlatformLabel = (platform) => {
   const key = String(platform || '').toLowerCase();
   return PLATFORM_LABELS[key] || String(platform || 'Unknown');
 };
@@ -822,7 +685,7 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
   tagsWrap.className = 'pn-tag-wrap';
 
   for (const tag of prompt.tags || []) {
-    const pill = await createTagPill(tag);
+    const pill = createTagPill(tag);
     pill.classList.add('pn-tag-pill--clickable');
     pill.title = `Filter by #${tag}`;
     pill.addEventListener('click', () => {
@@ -852,7 +715,7 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
         const response = await sendToActiveTab({ action: 'injectPrompt', text: prompt.text });
 
         if (!response?.ok) {
-          await showToast(response?.error || 'Inject failed.');
+        await showToast(response?.error || 'Inject failed.');
         }
       })();
     });
@@ -864,27 +727,7 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
   improveButton.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#a49aff"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>Improve`;
   improveButton.title = 'Improve prompt with AI';
   improveButton.addEventListener('click', () => {
-    void (async () => {
-      improveButton.disabled = true;
-      improveButton.textContent = 'Improving...';
-      
-      try {
-        const response = await window.AIBridge.improvePrompt(prompt.text, prompt.tags, 'general');
-        if (response?.text) {
-          prompt.text = response.text;
-          await window.Store.savePrompt(prompt);
-          await showToast('Prompt improved and saved ✨');
-          await renderPrompts(activeFilter);
-        } else {
-          await showToast('Could not improve prompt.');
-        }
-      } catch (err) {
-        await showToast('Error enhancing prompt.');
-      } finally {
-        improveButton.disabled = false;
-        improveButton.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#a49aff"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>Improve`;
-      }
-    })();
+    void openImproveModal(prompt.id, prompt.text, prompt.tags || []);
   });
 
   const deleteButton = document.createElement('button');
@@ -897,7 +740,7 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
       const deleted = await window.Store.deletePrompt(prompt.id);
 
       if (!deleted) {
-        await showToast('Failed to delete prompt.');
+        showToast('Failed to delete prompt.');
         return;
       }
 
@@ -952,12 +795,12 @@ const renderPrompts = async (filter = '') => {
   container.innerHTML = '';
 
   if (!prompts.length) {
-    container.appendChild(await createEmptyState('No prompts saved yet. Click Add Prompt to create one.'));
+    container.appendChild(createEmptyState('No prompts saved yet. Click Add Prompt to create one.'));
     return;
   }
 
   if (!filtered.length) {
-    container.appendChild(await createEmptyState('No prompts found for your current search.'));
+    container.appendChild(createEmptyState('No prompts found for your current search.'));
     return;
   }
 
@@ -977,13 +820,13 @@ const createHistoryCard = async (entry) => {
 
   const meta = document.createElement('p');
   meta.className = 'pn-card-meta';
-  meta.textContent = `${await getPlatformLabel(entry.platform)} • ${new Date(entry.createdAt).toLocaleString()}`;
+  meta.textContent = `${getPlatformLabel(entry.platform)} • ${new Date(entry.createdAt).toLocaleString()}`;
 
   const tagsWrap = document.createElement('div');
   tagsWrap.className = 'pn-tag-wrap';
 
   for (const tag of entry.tags || []) {
-    tagsWrap.appendChild(await createTagPill(tag));
+    tagsWrap.appendChild(createTagPill(tag));
   }
 
   const actions = document.createElement('div');
@@ -1061,7 +904,7 @@ const renderHistory = async () => {
   container.innerHTML = '';
 
   if (!reversed.length) {
-    container.appendChild(await createEmptyState('No chat history yet. Export a chat to populate this section.'));
+    container.appendChild(createEmptyState('No chat history yet. Export a chat to populate this section.'));
     return;
   }
 
@@ -1411,7 +1254,7 @@ const savePromptFromModal = async () => {
   const payload = {
     title: titleValue,
     text: textValue,
-    tags: await parseTags(tagsHidden.value || ''),
+    tags: parseTags(tagsHidden.value || ''),
     category: null
   };
 
@@ -1424,7 +1267,7 @@ const savePromptFromModal = async () => {
         if (dupWarn) {
           dupWarn.classList.remove('pn-hidden');
           dupWarn.innerHTML = `
-            <strong>Looks similar to: "${response.match.prompt?.title || 'Untitled'}"</strong>
+            <strong>Looks similar to: "${escapeHtml(response.match.prompt?.title || 'Untitled')}"</strong>
             <div class="pn-duplicate-actions">
               <button class="pn-btn-ignore" id="pn-dup-save-anyway" type="button">Save anyway</button>
             </div>
@@ -1494,7 +1337,7 @@ const toMessageMarkdown = async (message, index) => {
   const roleLabel = message.role === 'user' ? 'You' : 'Assistant';
   const service = await getTurndownService();
   const rawHtml = String(message?.html || '').trim();
-  const safeHtml = await stripInlineStylesFromHtml(rawHtml);
+  const safeHtml = stripInlineStylesFromHtml(rawHtml);
 
   if (service && safeHtml) {
     const converted = service.turndown(`<div>${safeHtml}</div>`).trim();
@@ -1518,7 +1361,7 @@ const buildMarkdown = async () => {
   const lines = [`# ${payload.title || 'PromptNest Chat'}`];
 
   if (state.exportPrefs.includePlatform) {
-    lines.push(`Platform: ${await getPlatformLabel(payload.platform)}`);
+    lines.push(`Platform: ${getPlatformLabel(payload.platform)}`);
   }
 
   if (state.exportPrefs.includeDate) {
@@ -1556,11 +1399,11 @@ const buildVisualPreviewMarkup = async () => {
 
   const parser = await getMarkdownParser();
   const platformLine = state.exportPrefs.includePlatform
-    ? `<p class="pn-export-meta-line">Platform: ${await escapeHtml(await getPlatformLabel(payload.platform))}</p>`
+    ? `<p class="pn-export-meta-line">Platform: ${escapeHtml(getPlatformLabel(payload.platform))}</p>`
     : '';
 
   const dateLine = state.exportPrefs.includeDate
-    ? `<p class="pn-export-meta-line">Exported: ${await escapeHtml(new Date().toLocaleString())}</p>`
+    ? `<p class="pn-export-meta-line">Exported: ${escapeHtml(new Date().toLocaleString())}</p>`
     : '';
 
   const rows = [];
@@ -1568,12 +1411,12 @@ const buildVisualPreviewMarkup = async () => {
 
   for (let index = 0; index < payload.messages.length; index += 1) {
     const message = payload.messages[index];
-    const roleLabel = await escapeHtml(message.role === 'user' ? 'You' : 'Assistant');
+    const roleLabel = escapeHtml(message.role === 'user' ? 'You' : 'Assistant');
     
     // First, safely convert the scraped content to Markdown
     let mdText = message.text;
     const rawHtml = String(message?.html || '').trim();
-    const safeHtml = await stripInlineStylesFromHtml(rawHtml);
+    const safeHtml = stripInlineStylesFromHtml(rawHtml);
     
     if (service && safeHtml) {
       const converted = service.turndown(`<div>${safeHtml}</div>`).trim();
@@ -1585,7 +1428,7 @@ const buildVisualPreviewMarkup = async () => {
     if (parser) {
       contentHtml = parser.render(mdText);
     } else {
-      contentHtml = (await escapeHtml(mdText)).replaceAll('\\n', '<br />');
+      contentHtml = (escapeHtml(mdText)).replaceAll('\\n', '<br />');
     }
 
     rows.push(`
@@ -1599,7 +1442,7 @@ const buildVisualPreviewMarkup = async () => {
   return `
     <section id="pn-export-snapshot" class="pn-export-sheet">
       <header class="pn-export-head">
-        <h2>${await escapeHtml(payload.title || 'PromptNest Chat')}</h2>
+        <h2>${escapeHtml(payload.title || 'PromptNest Chat')}</h2>
         ${platformLine}
         ${dateLine}
       </header>
@@ -1622,47 +1465,72 @@ const setExportStatus = async (message, isError = false) => {
 
 /** Synchronizes export preference state from currently rendered controls. */
 const syncExportPrefsFromControls = async () => {
-  const format = await byId('export-format');
-  const includeDate = await byId('include-date');
-  const includePlatform = await byId('include-platform');
+  const format = byId('export-format');
+  const includeDate = byId('include-date');
+  const includePlatform = byId('include-platform');
+  const includeMsgNumbers = byId('include-msg-numbers');
 
   state.exportPrefs = {
     format: String(format?.value || state.exportPrefs.format || 'markdown'),
     includeDate: Boolean(includeDate?.checked),
-    includePlatform: Boolean(includePlatform?.checked)
+    includePlatform: Boolean(includePlatform?.checked),
+    includeMessageNumbers: Boolean(includeMsgNumbers?.checked)
   };
 };
 
 /** Updates export summary metadata and export action label. */
 const renderExportMeta = async () => {
   const payload = state.exportPayload;
-  const selectionMeta = await byId('selection-meta');
-  const previewLabel = await byId('preview-label');
-  const exportButton = await byId('export-btn');
-  const isPdf = state.exportPrefs.format === 'pdf';
+  const selectionMeta = byId('selection-meta');
+  const previewLabel = byId('preview-label');
+  const exportButton = byId('export-btn');
+  const countsEl = byId('export-counts');
+  const msgCountEl = byId('export-msg-count');
+  const wordCountEl = byId('export-word-count');
+  const fmt = state.exportPrefs.format;
+
+  const formatLabels = {
+    markdown: 'Markdown',
+    txt: 'Plain Text',
+    json: 'JSON',
+    pdf: 'PDF'
+  };
+  const formatLabel = formatLabels[fmt] || 'Markdown';
 
   if (selectionMeta) {
     const count = payload?.messages?.length || 0;
-
     if (!count) {
       selectionMeta.textContent = 'No message selection received yet.';
     } else {
-      selectionMeta.textContent = `${count} selected message${count === 1 ? '' : 's'} • ${await getPlatformLabel(payload.platform)}`;
+      selectionMeta.textContent = `${count} message${count === 1 ? '' : 's'} • ${getPlatformLabel(payload.platform)}`;
+    }
+  }
+
+  // Word & message count badges
+  if (countsEl && msgCountEl && wordCountEl) {
+    const msgs = payload?.messages || [];
+    if (msgs.length > 0) {
+      const wordTotal = msgs.reduce((sum, m) => sum + (m.text || '').split(/\s+/).filter(Boolean).length, 0);
+      msgCountEl.textContent = `${msgs.length} msg${msgs.length === 1 ? '' : 's'}`;
+      wordCountEl.textContent = `${wordTotal.toLocaleString()} word${wordTotal === 1 ? '' : 's'}`;
+      countsEl.classList.remove('pn-hidden');
+    } else {
+      countsEl.classList.add('pn-hidden');
     }
   }
 
   if (previewLabel) {
-    previewLabel.textContent = isPdf ? 'PDF layout preview' : 'Markdown preview';
+    previewLabel.textContent = `${formatLabel} preview`;
   }
 
   if (exportButton) {
-    exportButton.textContent = isPdf ? 'Export PDF' : 'Export Markdown';
+    exportButton.textContent = `Export ${formatLabel}`;
   }
 };
 
 /** Renders export preview area from current payload and selected format. */
 const renderExportPreview = async () => {
-  const preview = await byId('preview');
+  const preview = byId('preview');
 
   if (!preview) {
     return;
@@ -1681,8 +1549,14 @@ const renderExportPreview = async () => {
   await renderExportMeta();
 };
 
-/** Generates deterministic export filename based on platform and date. */
+/** Generates export filename, preferring user-supplied custom name. */
 const buildExportFilename = async (extension) => {
+  const customName = String(byId('export-filename')?.value || '').trim();
+  if (customName) {
+    // Strip any existing extension and add the correct one
+    const baseName = customName.replace(/\.[^.]+$/, '');
+    return `${baseName}.${extension}`;
+  }
   const platform = String(state.exportPayload?.platform || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '');
   const date = new Date().toISOString().slice(0, 10);
   return `promptnest_${platform || 'unknown'}_${date}.${extension}`;
@@ -1702,7 +1576,27 @@ const downloadSidepanelText = async (content, filename, mimeType) => {
   URL.revokeObjectURL(objectUrl);
 };
 
-/** Executes export action for markdown or PDF. */
+/** Builds chat data compatible with Exporter functions from current state. */
+const buildExporterChatPayload = () => {
+  const payload = state.exportPayload;
+  if (!payload) return null;
+  return {
+    title: payload.title,
+    platform: payload.platform,
+    createdAt: payload.createdAt,
+    messages: payload.messages
+  };
+};
+
+/** Builds exporter-compatible prefs from current export state. */
+const buildExporterPrefs = () => ({
+  includePlatformLabel: state.exportPrefs.includePlatform,
+  includeTimestamps: false,
+  includeMessageNumbers: state.exportPrefs.includeMessageNumbers,
+  headerText: ''
+});
+
+/** Executes export action for markdown, txt, json, or PDF. */
 const runExport = async () => {
   await syncExportPrefsFromControls();
 
@@ -1713,19 +1607,47 @@ const runExport = async () => {
     return;
   }
 
-  if (state.exportPrefs.format === 'markdown') {
-    const markdown = await buildMarkdown();
+  const format = state.exportPrefs.format;
 
+  // Markdown
+  if (format === 'markdown') {
+    const markdown = await buildMarkdown();
     if (!markdown) {
       await setExportStatus('Unable to build markdown output.', true);
       return;
     }
-
     await downloadSidepanelText(markdown, await buildExportFilename('md'), 'text/markdown;charset=utf-8');
-    await setExportStatus('Markdown exported.');
+    await setExportStatus('Markdown exported!');
     return;
   }
 
+  // Plain Text
+  if (format === 'txt') {
+    try {
+      const chat = buildExporterChatPayload();
+      const text = await window.Exporter.toTXT(chat, buildExporterPrefs());
+      await downloadSidepanelText(text, await buildExportFilename('txt'), 'text/plain;charset=utf-8');
+      await setExportStatus('Plain text exported!');
+    } catch (err) {
+      await setExportStatus(err?.message || 'Text export failed.', true);
+    }
+    return;
+  }
+
+  // JSON
+  if (format === 'json') {
+    try {
+      const chat = buildExporterChatPayload();
+      const json = await window.Exporter.toJSON(chat, buildExporterPrefs());
+      await downloadSidepanelText(json, await buildExportFilename('json'), 'application/json;charset=utf-8');
+      await setExportStatus('JSON exported!');
+    } catch (err) {
+      await setExportStatus(err?.message || 'JSON export failed.', true);
+    }
+    return;
+  }
+
+  // PDF
   if (!window.html2pdf) {
     await setExportStatus('html2pdf library unavailable.', true);
     return;
@@ -1740,7 +1662,7 @@ const runExport = async () => {
     return;
   }
 
-  await setExportStatus('Building PDF...');
+  await setExportStatus('Building PDF!');
 
   try {
     await window.html2pdf()
@@ -1754,11 +1676,227 @@ const runExport = async () => {
       .from(snapshot)
       .save();
 
-    await setExportStatus('PDF exported.');
+    await setExportStatus('PDF exported!');
   } catch (error) {
     await setExportStatus(error?.message || 'PDF export failed.', true);
   }
 };
+
+/** Copies export content to clipboard in the appropriate text format. */
+const copyExportToClipboard = async () => {
+  await syncExportPrefsFromControls();
+  const payload = state.exportPayload;
+
+  if (!payload || !payload.messages.length) {
+    await setExportStatus('Nothing to copy.', true);
+    return;
+  }
+
+  try {
+    const format = state.exportPrefs.format;
+    let content = '';
+
+    if (format === 'json') {
+      const chat = buildExporterChatPayload();
+      content = await window.Exporter.toJSON(chat, buildExporterPrefs());
+    } else if (format === 'markdown') {
+      content = await buildMarkdown();
+    } else {
+      const chat = buildExporterChatPayload();
+      content = await window.Exporter.toClipboardText(chat, buildExporterPrefs());
+    }
+
+    await navigator.clipboard.writeText(content);
+
+    const copyBtn = byId('copy-export-btn');
+    if (copyBtn) {
+      const origHTML = copyBtn.innerHTML;
+      copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!';
+      copyBtn.classList.add('pn-btn--copied');
+      setTimeout(() => {
+        copyBtn.innerHTML = origHTML;
+        copyBtn.classList.remove('pn-btn--copied');
+      }, 2000);
+    }
+
+    await setExportStatus('Copied to clipboard!');
+  } catch (err) {
+    await setExportStatus('Failed to copy to clipboard.', true);
+  }
+};
+
+// ─── Improve Prompt Diff Modal ───────────────────────────────────────────────
+
+/** State for the improve prompt diff modal. */
+const improveModalState = {
+  promptId: null,
+  originalText: '',
+  improvedText: '',
+  previousText: null, // for undo
+  isRunning: false
+};
+
+/** Opens the improve diff modal in loading state and fires the AI request. */
+const openImproveModal = async (promptId, originalText, tags = []) => {
+  improveModalState.promptId = promptId;
+  improveModalState.originalText = originalText;
+  improveModalState.improvedText = '';
+  improveModalState.isRunning = true;
+
+  const modal = document.getElementById('pn-improve-modal');
+  const loading = document.getElementById('pn-improve-loading');
+  const diff = document.getElementById('pn-improve-diff');
+  const error = document.getElementById('pn-improve-error');
+  const acceptBtn = document.getElementById('pn-improve-accept');
+  const retryBtn = document.getElementById('pn-improve-retry');
+
+  if (!modal) return;
+
+  // Reset state
+  modal.classList.remove('pn-hidden');
+  loading?.classList.remove('pn-hidden');
+  diff?.classList.add('pn-hidden');
+  error?.classList.add('pn-hidden');
+  if (acceptBtn) acceptBtn.disabled = true;
+  if (retryBtn) retryBtn.disabled = true;
+
+  // Run the AI improvement
+  const style = document.getElementById('pn-improve-modal-style')?.value || 'general';
+  try {
+    const response = await window.AIBridge.improvePrompt(originalText, tags, style);
+    improveModalState.isRunning = false;
+
+    if (response?.text) {
+      improveModalState.improvedText = response.text;
+      showImproveDiff();
+    } else {
+      showImproveError('AI could not generate an improvement. Try a different style.');
+    }
+  } catch (err) {
+    improveModalState.isRunning = false;
+    showImproveError(err?.message || 'Request failed. Check your API key.');
+  }
+};
+
+/** Displays the before/after diff in the modal. */
+const showImproveDiff = () => {
+  const loading = document.getElementById('pn-improve-loading');
+  const diff = document.getElementById('pn-improve-diff');
+  const error = document.getElementById('pn-improve-error');
+  const origEl = document.getElementById('pn-improve-original');
+  const newEl = document.getElementById('pn-improve-improved');
+  const origCount = document.getElementById('pn-improve-orig-count');
+  const newCount = document.getElementById('pn-improve-new-count');
+  const acceptBtn = document.getElementById('pn-improve-accept');
+  const retryBtn = document.getElementById('pn-improve-retry');
+
+  loading?.classList.add('pn-hidden');
+  error?.classList.add('pn-hidden');
+  diff?.classList.remove('pn-hidden');
+  if (acceptBtn) acceptBtn.disabled = false;
+  if (retryBtn) retryBtn.disabled = false;
+
+  if (origEl) origEl.textContent = improveModalState.originalText;
+  if (newEl) newEl.textContent = improveModalState.improvedText;
+
+  // Character counts with diff
+  const origLen = improveModalState.originalText.length;
+  const newLen = improveModalState.improvedText.length;
+  const charDiff = newLen - origLen;
+  const diffLabel = charDiff > 0 ? `+${charDiff}` : `${charDiff}`;
+
+  if (origCount) origCount.textContent = `${origLen} chars`;
+  if (newCount) {
+    newCount.textContent = `${newLen} chars (${diffLabel})`;
+    newCount.classList.toggle('pn-improve-count--positive', charDiff > 0);
+    newCount.classList.toggle('pn-improve-count--negative', charDiff < 0);
+  }
+};
+
+/** Shows error state in the improve modal. */
+const showImproveError = (message) => {
+  const loading = document.getElementById('pn-improve-loading');
+  const diff = document.getElementById('pn-improve-diff');
+  const error = document.getElementById('pn-improve-error');
+  const errorMsg = document.getElementById('pn-improve-error-msg');
+  const retryBtn = document.getElementById('pn-improve-retry');
+
+  loading?.classList.add('pn-hidden');
+  diff?.classList.add('pn-hidden');
+  error?.classList.remove('pn-hidden');
+  if (errorMsg) errorMsg.textContent = message;
+  if (retryBtn) retryBtn.disabled = false;
+};
+
+/** Closes the improve diff modal. */
+const closeImproveModal = () => {
+  const modal = document.getElementById('pn-improve-modal');
+  modal?.classList.add('pn-hidden');
+  improveModalState.isRunning = false;
+};
+
+/** Accepts the improved text, saves it, and offers undo via toast. */
+const acceptImproveResult = async () => {
+  const { promptId, originalText, improvedText } = improveModalState;
+  if (!promptId || !improvedText) return;
+
+  // Save previous text for undo
+  improveModalState.previousText = originalText;
+
+  const updated = await window.Store.updatePrompt(promptId, { text: improvedText });
+  closeImproveModal();
+
+  if (updated) {
+    await renderPrompts(String(byId('prompt-search')?.value || ''));
+
+    // Show undo toast
+    const toast = document.createElement('div');
+    toast.className = 'pn-toast pn-toast--undo';
+    toast.innerHTML = `Prompt improved ✨ <button class="pn-toast-undo-btn" type="button">Undo</button>`;
+    document.body.appendChild(toast);
+
+    const undoBtn = toast.querySelector('.pn-toast-undo-btn');
+    undoBtn?.addEventListener('click', async () => {
+      await window.Store.updatePrompt(promptId, { text: originalText });
+      await renderPrompts(String(byId('prompt-search')?.value || ''));
+      toast.remove();
+      showToast('Reverted to original.');
+    });
+
+    setTimeout(() => toast.remove(), 6000);
+  } else {
+    showToast('Could not save improved prompt.');
+  }
+};
+
+/** Retries the improvement with the current modal style. */
+const retryImprove = async () => {
+  const { promptId, originalText } = improveModalState;
+  if (!promptId) return;
+
+  // Get original prompt tags
+  const allPrompts = await window.Store.getPrompts();
+  const prompt = allPrompts.find(p => p.id === promptId);
+  await openImproveModal(promptId, originalText, prompt?.tags || []);
+};
+
+/** Binds all improve modal event listeners. */
+const bindImproveModalEvents = () => {
+  document.getElementById('pn-improve-accept')?.addEventListener('click', () => {
+    void acceptImproveResult();
+  });
+
+  document.getElementById('pn-improve-reject')?.addEventListener('click', closeImproveModal);
+
+  document.getElementById('pn-improve-retry')?.addEventListener('click', () => {
+    void retryImprove();
+  });
+
+  // Backdrop close
+  document.querySelector('[data-close-improve]')?.addEventListener('click', closeImproveModal);
+};
+
+// ─── End Improve Modal ───────────────────────────────────────────────────────
 
 /** Applies settings/save flow and refreshes dependent UI state. */
 const saveSettingsFromPanel = async () => {
@@ -1987,9 +2125,12 @@ const bindEvents = async () => {
     setTimeout(() => { btn.textContent = 'Check'; btn.classList.remove('pn-status-error', 'pn-status-ok'); }, 3000);
   });
 
-  (await byId('prompt-search'))?.addEventListener('input', (event) => {
+  (byId('prompt-search'))?.addEventListener('input', (event) => {
     const target = event.target;
-    void renderPrompts(String(target?.value || ''));
+    clearTimeout(state._searchDebounce);
+    state._searchDebounce = setTimeout(() => {
+      void renderPrompts(String(target?.value || ''));
+    }, 250);
   });
 
   (await byId('export-format'))?.addEventListener('change', () => {
@@ -2013,8 +2154,19 @@ const bindEvents = async () => {
     })();
   });
 
+  byId('include-msg-numbers')?.addEventListener('change', () => {
+    void (async () => {
+      await syncExportPrefsFromControls();
+      await renderExportPreview();
+    })();
+  });
+
   (await byId('export-btn'))?.addEventListener('click', () => {
     void runExport();
+  });
+
+  byId('copy-export-btn')?.addEventListener('click', () => {
+    void copyExportToClipboard();
   });
 
   (await byId('save-settings-btn'))?.addEventListener('click', () => {
@@ -2038,16 +2190,11 @@ const bindEvents = async () => {
   ];
 
   for (const controlId of settingsControlIds) {
-    const control = await byId(controlId);
-
-    if (!control) {
-      continue;
-    }
-
+    const control = document.getElementById(controlId);
+    if (!control) continue;
     control.addEventListener('change', () => {
       void syncSettingsSaveState();
     });
-
     if (controlId === 'setting-user-context') {
       control.addEventListener('input', () => {
         void syncSettingsSaveState();
@@ -2056,54 +2203,13 @@ const bindEvents = async () => {
   }
 
   window.addEventListener('resize', () => {
-    void updateTabIndicator();
+    // No-op
   });
 };
 
-/** Adds a single tag badge to the badge container and syncs to hidden input. */
-const addTagBadge = (tag) => {
-  const normalized = String(tag || '').trim().toLowerCase();
-  if (!normalized) return;
+// addTagBadge and syncBadgesToHidden are now provided by utils/tags.js
 
-  const wrap = document.getElementById('tag-badges-wrap');
-  const input = document.getElementById('prompt-tags-input');
-  if (!wrap) return;
-
-  // Prevent duplicate badges
-  const existing = Array.from(wrap.querySelectorAll('.pn-tag-badge'))
-    .map(b => b.dataset.tag);
-  if (existing.includes(normalized)) return;
-
-  const badge = document.createElement('span');
-  badge.className = 'pn-tag-badge';
-  badge.dataset.tag = normalized;
-  badge.innerHTML = `${normalized}<button type="button" class="pn-tag-badge__remove">×</button>`;
-
-  badge.querySelector('.pn-tag-badge__remove')?.addEventListener('click', () => {
-    badge.remove();
-    syncBadgesToHidden();
-  });
-
-  if (input) {
-    wrap.insertBefore(badge, input);
-  } else {
-    wrap.appendChild(badge);
-  }
-
-  syncBadgesToHidden();
-};
-
-/** Syncs badge tags to the hidden prompt-tags input. */
-const syncBadgesToHidden = () => {
-  const wrap = document.getElementById('tag-badges-wrap');
-  const hidden = document.getElementById('prompt-tags');
-  if (!wrap || !hidden) return;
-
-  const tags = Array.from(wrap.querySelectorAll('.pn-tag-badge'))
-    .map(b => b.dataset.tag)
-    .filter(Boolean);
-  hidden.value = tags.join(', ');
-};
+// syncBadgesToHidden provided by Tags
 
 /** Loads smart suggestions by fetching conversation context from active tab. */
 const loadSmartSuggestions = async () => {
@@ -2159,6 +2265,7 @@ const loadSmartSuggestions = async () => {
 /** Initializes full side panel workspace and renders all sections. */
 const init = async () => {
   await bindEvents();
+  bindImproveModalEvents();
   await loadSettings();
   await renderSettingsControls();
   await syncSettingsSaveState();
